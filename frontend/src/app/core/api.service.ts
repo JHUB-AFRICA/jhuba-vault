@@ -1,0 +1,67 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs';
+import { Asset, AssetCategory, AssetRequest, AuditLog, TeamMember, User } from './models';
+
+const API_URL = '/api';
+interface ApiResponse<T> { success: boolean; data: T; }
+export interface AuthCredentials { email: string; password: string; }
+export interface RegistrationData extends AuthCredentials { fullName: string; phoneNumber: string; identificationId: string; department?: string; }
+export interface AuthResponse { user: User; token: string; }
+
+@Injectable({ providedIn: 'root' })
+export class AuthService {
+  private readonly http = inject(HttpClient);
+  login(credentials: AuthCredentials): Observable<AuthResponse> { return this.http.post<ApiResponse<AuthResponse>>(`${API_URL}/auth/login`, credentials).pipe(map(response => response.data)); }
+  register(data: RegistrationData): Observable<AuthResponse> { return this.http.post<ApiResponse<AuthResponse>>(`${API_URL}/auth/register`, data).pipe(map(response => response.data)); }
+  me(): Observable<User> { return this.http.get<ApiResponse<User>>(`${API_URL}/auth/me`).pipe(map(response => response.data)); }
+}
+
+@Injectable({ providedIn: 'root' })
+export class AssetService {
+  private readonly http = inject(HttpClient);
+  list(filters?: { search?: string; category?: AssetCategory; availability?: string }): Observable<Asset[]> {
+    let params = new HttpParams();
+    if (filters?.search) params = params.set('search', filters.search);
+    if (filters?.category) params = params.set('category', filters.category);
+    if (filters?.availability) params = params.set('availability', filters.availability);
+    return this.http.get<ApiResponse<Asset[]>>(`${API_URL}/assets`, { params }).pipe(map(response => response.data));
+  }
+  getById(id: string): Observable<Asset> { return this.http.get<ApiResponse<Asset>>(`${API_URL}/assets/${id}`).pipe(map(response => response.data)); }
+  create(asset: Omit<Asset, 'id' | 'createdAt' | 'updatedAt' | 'imagePublicId'>): Observable<Asset> { return this.http.post<ApiResponse<Asset>>(`${API_URL}/assets`, asset).pipe(map(response => response.data)); }
+  update(id: string, asset: Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt' | 'imagePublicId'>>): Observable<Asset> { return this.http.patch<ApiResponse<Asset>>(`${API_URL}/assets/${id}`, asset).pipe(map(response => response.data)); }
+  remove(id: string): Observable<void> { return this.http.delete<void>(`${API_URL}/assets/${id}`); }
+}
+
+@Injectable({ providedIn: 'root' })
+export class RequestService {
+  private readonly http = inject(HttpClient);
+  listMine(): Observable<AssetRequest[]> { return this.http.get<ApiResponse<{ items: AssetRequest[] }>>(`${API_URL}/requests`).pipe(map(response => response.data.items)); }
+  getById(id: string): Observable<AssetRequest> { return this.http.get<ApiResponse<AssetRequest>>(`${API_URL}/requests/${id}`).pipe(map(response => response.data)); }
+  create(request: { projectName: string; projectAbstract: string; loanDays: number; startDate: string; items: Array<{ assetId: string; quantity: number }>; teamMembers: Array<Omit<TeamMember, 'id' | 'requestId' | 'name' | 'role'>> }): Observable<AssetRequest> { return this.http.post<ApiResponse<AssetRequest>>(`${API_URL}/requests`, request).pipe(map(response => response.data)); }
+  update(id: string, request: Partial<AssetRequest>): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/requests/${id}`, request).pipe(map(response => response.data)); }
+  approve(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/approve`, {}).pipe(map(response => response.data)); }
+  reject(id: string, rejectionReason: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/reject`, { rejectionReason }).pipe(map(response => response.data)); }
+  checkout(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/checkout`, {}).pipe(map(response => response.data)); }
+  returnAsset(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/return`, {}).pipe(map(response => response.data)); }
+  listAdmin(filters?: { search?: string; status?: string }): Observable<AssetRequest[]> { let params = new HttpParams(); if (filters?.search) params = params.set('search', filters.search); if (filters?.status) params = params.set('status', filters.status); return this.http.get<ApiResponse<{ items: AssetRequest[] }>>(`${API_URL}/admin/requests`, { params }).pipe(map(response => response.data.items)); }
+}
+
+@Injectable({ providedIn: 'root' })
+export class ProfileService {
+  private readonly http = inject(HttpClient);
+  getMine(): Observable<User> { return this.http.get<ApiResponse<User>>(`${API_URL}/users/me`).pipe(map(response => response.data)); }
+  updateMine(profile: Partial<User>): Observable<User> { return this.http.patch<ApiResponse<User>>(`${API_URL}/users/me`, profile).pipe(map(response => response.data)); }
+}
+
+@Injectable({ providedIn: 'root' })
+export class AdminService {
+  private readonly http = inject(HttpClient);
+  dashboard(): Observable<AdminDashboard> { return this.http.get<ApiResponse<AdminDashboard>>(`${API_URL}/admin/dashboard`).pipe(map(response => response.data)); }
+  users(): Observable<User[]> { return this.http.get<ApiResponse<User[]>>(`${API_URL}/admin/users`).pipe(map(response => response.data)); }
+  inventory(): Observable<Asset[]> { return this.http.get<ApiResponse<Asset[]>>(`${API_URL}/admin/inventory`).pipe(map(response => response.data)); }
+  auditLog(): Observable<AuditLog[]> { return this.http.get<ApiResponse<AuditLog[]>>(`${API_URL}/admin/audit`).pipe(map(response => response.data)); }
+}
+
+export interface AdminDashboard { totalAssets: number; availableInventory: number; pendingRequests: number; approvedRequests: number; checkedOutRequests: number; returnedRequests: number; overdueRequests: number; users: number; }

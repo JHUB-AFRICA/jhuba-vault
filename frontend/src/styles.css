@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --navy: #262571; --blue: #2a4695; --green: #3ea945; --red: #e6292a; --paper: #f5f7fb; --ink: #172033; }
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body { margin: 0; color: var(--ink); font-family: 'Segoe UI', sans-serif; }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid #89be32; outline-offset: 2px; }
