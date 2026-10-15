@@ -1,0 +1,29 @@
+# JHUB Africa Vault API
+
+Express + TypeScript + Prisma + PostgreSQL backend for the existing Angular application.
+
+## Setup
+
+1. Copy `.env.example` to `.env` and set `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CLIENT_URL`, and `PORT`.
+2. Start PostgreSQL locally, or use the project Docker Compose service when added.
+3. Run `npm install` inside `backend/`.
+4. Run `npx prisma generate`.
+5. Run `npx prisma migrate deploy` for the existing migration history.
+6. Run `npm run seed`.
+7. Run `npm run dev`.
+
+The API runs at `http://localhost:3000/api`. Development seed credentials are documented here only: `admin@jhubafrica.example` / `ChangeMe123!` and `innovator@jhubafrica.example` / `ChangeMe123!`. Change them before any real deployment.
+
+Do not run `prisma migrate reset`, delete applied migrations, or regenerate the baseline. For a deliberate schema change, create an additive migration, review it, apply it with `prisma migrate deploy`, and verify with `prisma migrate status`.
+
+## Validation
+
+```powershell
+npm test
+npm run build
+npx prisma validate
+npx prisma generate
+npx prisma migrate status
+```
+
+Cloudinary and mail integrations are environment-driven. The API never returns password hashes or secrets.
