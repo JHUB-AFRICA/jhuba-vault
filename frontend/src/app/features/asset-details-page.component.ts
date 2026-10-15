@@ -1,6 +1,5 @@
 import {
-  CurrencyPipe,
-  DatePipe
+  CurrencyPipe
 } from '@angular/common';
 
 import {
@@ -36,7 +35,6 @@ import {
 
   imports: [
     CurrencyPipe,
-    DatePipe,
     RouterLink,
     AssetImageComponent
   ],
@@ -728,7 +726,7 @@ export class AssetDetailsPageComponent {
 
 
     this.assetService
-      .get(id)
+      .getById(id)
       .subscribe({
 
         next: asset => {
