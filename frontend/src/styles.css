@@ -1,89 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'primeicons/primeicons.css';
 
-:root { --navy: #262571; --blue: #2a4695; --green: #3ea945; --red: #e6292a; --paper: #f5f7fb; --ink: #172033; }
-* { box-sizing: border-box; }
-html { background: var(--paper); }
-body { margin: 0; color: var(--ink); font-family: 'Segoe UI', sans-serif; }
-button, input, textarea, select { font: inherit; }
-button { cursor: pointer; }
-:focus-visible { outline: 3px solid #89be32; outline-offset: 2px; }
-
-.reference-topbar { height: 40px; padding: 0 20px; border-bottom: 1px solid #edf0f7; }
-.reference-topbar .brand jhub-brand-logo { width: 58px; }
-.reference-topbar .desktop-nav { display: none; }
-.reference-topbar .nav-actions { margin-left: auto; gap: 10px; }
-.reference-topbar .text-button { border: 1px solid #edf0f7; border-radius: 6px; padding: 6px 12px; color: #172033; font-size: 10px; }
-.reference-topbar .primary-button { background: #3026d5; border-radius: 6px; padding: 7px 12px; font-size: 10px; }
-
-.vault-home { background: linear-gradient(180deg, #f5f7ff 0%, #f8f9ff 73%, #eef3ff 100%); color: #11182a; padding: 18px 20px 20px; }
-.vault-hero { text-align: center; max-width: 920px; margin: 0 auto; padding: 0 0 28px; }
-.vault-kicker { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid #ebedf8; border-radius: 14px; background: #fff; color: #5a6075; font-size: 8px; letter-spacing: .3px; }
-.vault-kicker span { width: 5px; height: 5px; border-radius: 50%; background: #168c60; }
-.vault-hero h1 { max-width: 610px; margin: 16px auto 10px; color: #0e172a; font-size: 21px; line-height: 1.15; }
-.vault-hero > p:not(.vault-kicker) { margin: 0; color: #5e667a; font-size: 10px; line-height: 1.45; }
-.vault-actions { display: flex; justify-content: center; gap: 9px; margin-top: 18px; }
-.vault-actions a, .vault-cta a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; border-radius: 5px; padding: 8px 14px; font-size: 9px; }
-.vault-actions a:first-child { background: #2a4695; color: #fff; box-shadow: 0 3px 7px #2a469533; }
-.vault-actions a:last-child { background: #fff; color: #182039; }
-.vault-metrics { max-width: 920px; margin: 0 auto 36px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.vault-metrics > div { min-height: 108px; padding: 16px 14px; background: #fff; border: 1px solid #edf0f8; border-radius: 8px; box-shadow: 0 5px 14px #4654a008; }
-.vault-metrics span, .vault-metrics b, .vault-metrics small { display: block; }
-.vault-metrics span { color: #596174; font-size: 8px; letter-spacing: .7px; }
-.vault-metrics strong { display: block; margin: 11px 0 4px; font-size: 20px; line-height: 1; }
-.vault-metrics b { color: #2f29c8; font-size: 9px; }
-.vault-metrics small { margin-top: 3px; color: #777e91; font-size: 7px; }
-.vault-section, .vault-workflow { max-width: 920px; margin: 0 auto 34px; }
-.vault-section-head { display: flex; align-items: end; justify-content: space-between; margin-bottom: 16px; }
-.vault-section-head p, .vault-workflow > p, .vault-cta > p { margin: 0 0 5px; color: #3026d5; font-size: 8px; letter-spacing: .6px; }
-.vault-section-head h2, .vault-workflow h2 { margin: 0; font-size: 15px; font-weight: 600; }
-.vault-section-head > span { padding: 6px 9px; background: #fff; border-radius: 5px; color: #636b7e; font-size: 8px; }
-.vault-category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.vault-category-item { min-width: 0; }
-.vault-category-card { position: relative; width: 100%; min-height: 84px; padding: 15px 14px; background: #fff; border: 1px solid #edf0f8; border-radius: 8px; color: #10182b; text-align: left; }
-.vault-category-card[aria-expanded="true"] { border-color: #3026d5; border-radius: 8px 8px 0 0; }
-.vault-category-card i { position: absolute; top: 15px; left: 14px; display: inline-grid; place-items: center; width: 23px; height: 23px; border-radius: 6px; background: #eef0ff; color: #3026d5; font-style: normal; font-size: 12px; }
-.vault-category-card strong, .vault-category-card small { display: block; margin-left: 31px; }
-.vault-category-card strong { padding-top: 2px; font-size: 8px; letter-spacing: .2px; }
-.vault-category-card small { margin-top: 7px; color: #656c7e; font-size: 7px; }
-.vault-category-card em { position: absolute; right: 14px; bottom: 15px; color: #3026d5; font-size: 8px; font-style: normal; }
-.vault-assets-dropdown { padding: 8px; background: #f8f9ff; border: 1px solid #3026d5; border-top: 0; border-radius: 0 0 8px 8px; }
-.vault-assets-dropdown > p { margin: 2px 4px 7px; color: #3026d5; font-size: 8px; font-weight: 700; }
-.vault-assets-dropdown a { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px; border-radius: 5px; color: #172033; text-decoration: none; }
-.vault-assets-dropdown a:hover { background: #fff; }
-.vault-assets-dropdown a span { font-size: 8px; font-weight: 600; }
-.vault-assets-dropdown a small { color: #70788a; font-size: 7px; }
-.vault-assets-dropdown a b { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: #3026d5; font-size: 7px; white-space: nowrap; }
-.vault-empty-assets { display: block; padding: 8px 4px; color: #70788a; font-size: 7px; }
-.vault-workflow { text-align: center; }
-.vault-workflow > small { color: #777e91; font-size: 8px; }
-.vault-workflow > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; text-align: left; }
-.vault-workflow article { position: relative; min-height: 113px; padding: 16px 14px; background: #fff; border: 1px solid #edf0f8; border-radius: 8px; }
-.vault-workflow article > strong { color: #bbbdf1; font-size: 20px; }
-.vault-workflow article > b { position: absolute; top: 17px; right: 14px; color: #3026d5; }
-.vault-workflow h3 { margin: 10px 0 6px; font-size: 9px; }
-.vault-workflow article p, .vault-workflow article small { display: block; margin: 0; color: #777e91; font-size: 7px; }
-.vault-workflow article small { margin-top: 10px; color: #168c60; }
-.vault-cta { max-width: 920px; margin: 0 auto 18px; padding: 20px; background: linear-gradient(110deg, #382ed7, #3023c7); border-radius: 7px; color: #fff; box-shadow: 0 5px 12px #3026d533; }
-.vault-cta > p { color: #d9d8ff; }
-.vault-cta h2 { margin: 0 0 6px; font-size: 16px; line-height: 1.2; }
-.vault-cta small { display: block; color: #e2e1ff; font-size: 8px; line-height: 1.4; }
-.vault-cta a { float: right; margin-top: -26px; background: #fff; color: #3026d5; }
-.vault-footer { background: #eef3ff; border-top: 1px solid #e3e9fa; }
-.vault-footer > div { max-width: 920px; display: grid !important; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: 35px; padding: 24px 20px !important; margin: auto; align-items: start; font-size: 8px; }
-.vault-footer .footer-brand { grid-column: 1; margin: 0 0 5px; }
-.vault-footer .footer-brand jhub-brand-logo { width: 58px; }
-.vault-footer p { grid-column: 1; margin: 0; line-height: 1.45; color: #5f677a; }
-.vault-footer b { grid-column: 1; margin-top: 5px; color: #3026d5; font-size: 8px; }
-.vault-footer small { grid-column: 1; color: #5f677a; line-height: 1.4; }
-.vault-footer strong { color: #1a2235; font-size: 8px; }
-.vault-footer > div > div p { grid-column: auto; margin-top: 8px; }
-.vault-footer aside { padding: 8px 20px; border-top: 1px solid #dfe6f8; color: #5f677a; font-size: 8px; }
-.vault-footer aside span { margin-right: 20px; color: #1c825d; }
-.vault-footer aside button { float: right; margin-top: -4px; border: 0; border-radius: 12px; padding: 6px 12px; background: #3026d5; color: #fff; font-size: 8px; }
-@media (max-width: 760px) {
-  .vault-metrics, .vault-category-grid, .vault-workflow > div, .vault-footer > div { grid-template-columns: 1fr 1fr; }
-  .vault-metrics > div:last-child, .vault-category-grid a:last-child { display: none; }
-  .vault-footer > div { gap: 18px; }
+:root {
+  --navy: #262571;
+  --blue: #2a4695;
+  --green: #3ea945;
+  --paper: #f6f7ff;
+  --ink: #172033;
 }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; background: var(--paper); }
+body { margin: 0; color: var(--ink); font-family: "Segoe UI", sans-serif; }
+a { color: inherit; text-decoration: none; }
+button, a { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid #89be32; outline-offset: 3px; }
