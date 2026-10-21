@@ -1,25 +1,3 @@
-    @if (isAdminRequests()) {
-      <router-outlet></router-outlet>
-    } @else {
-      <header class="topbar">
-        <!-- … upstream header/nav code … -->
-      </header>
-
-      <!-- … upstream main sections … -->
-    }
-    <router-outlet></router-outlet>
-    <footer class="footer">
-      <div class="page-width">
-        <a class="brand footer-brand" routerLink="/">
-          <jhub-brand-logo logo="jhub" variant="footer"></jhub-brand-logo>
-        </a>
-        <p>
-          A shared infrastructure for ambitious ideas.<br>
-          Jomo Kenyatta University of Agriculture and Technology.
-        </p>
-        <span>© 2026 JHUB Africa</span>
-      </div>
-    </footer>
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -37,12 +15,9 @@ import { BrandLogoComponent } from './shared/brand-logo.component';
   imports: [RouterLink, RouterLinkActive, RouterOutlet, BrandLogoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (isAdminRequests()) {
-      <router-outlet></router-outlet>
-    } @else {
-      <header class="topbar">
+    <header class="topbar">
         <a class="brand" routerLink="/" aria-label="JHUB Africa Vault home">
-          <jhub-brand-logo logo="jhub-africa" variant="header"></jhub-brand-logo>
+          <jhub-brand-logo logo="jhub-africa" variant="vault-header"></jhub-brand-logo>
           <span><strong>AFRICA VAULT</strong><small>ASSET TRACKING</small></span>
         </a>
         <button class="menu-toggle" type="button" aria-label="Toggle navigation"
@@ -79,11 +54,10 @@ import { BrandLogoComponent } from './shared/brand-logo.component';
             <a class="primary-button compact" routerLink="/auth/register">Create account</a>
           }
         </div>
-      </header>
+    </header>
 
-      <!-- upstream main sections (home, catalogue, auth, admin, dashboard shell) -->
-      <!-- … unchanged content … -->
-    }
+    <!-- upstream main sections (home, catalogue, auth, admin, dashboard shell) -->
+    <!-- … unchanged content … -->
     <router-outlet></router-outlet>
     <footer class="footer">
       <div class="page-width">
@@ -98,7 +72,52 @@ import { BrandLogoComponent } from './shared/brand-logo.component';
       </div>
     </footer>
   `,
-  styles: [/* your styles unchanged */]
+  styles: [`
+    :host { display:block; }
+    .topbar { position:sticky; top:0; z-index:20; min-height:76px; display:flex; align-items:center; justify-content:space-between; gap:22px; padding:0 clamp(20px,3vw,48px); background:#fff; border-bottom:1px solid #e5eaf1; }
+    .brand { flex:none; display:flex; align-items:center; gap:6px; color:#262571; text-decoration:none; }
+    .brand jhub-brand-logo { width:132px; height:64px; flex:none; }
+    .brand span { display:grid; gap:2px; }
+    .brand strong { color:#262571; font-size:11px; letter-spacing:.6px; white-space:nowrap; }
+    .brand small { color:#65738a; font-size:7px; letter-spacing:1px; white-space:nowrap; }
+    .desktop-nav { flex:1; display:flex; justify-content:center; align-items:center; gap:clamp(10px,1.6vw,26px); }
+    .desktop-nav a { padding:10px 1px; color:#54647b; font-size:13px; text-decoration:none; white-space:nowrap; }
+    .desktop-nav a:hover,.desktop-nav a.active { color:#262571; }
+    .desktop-nav a.active { font-weight:700; box-shadow:inset 0 -2px #2a4695; }
+    .nav-actions { flex:none; display:flex; align-items:center; gap:16px; }
+    .user-chip { max-width:180px; overflow:hidden; color:#263850; font-size:12px; font-weight:600; text-decoration:none; text-overflow:ellipsis; white-space:nowrap; }
+    .text-button { border:0; background:transparent; color:#2a4695; font-size:12px; font-weight:600; text-decoration:none; white-space:nowrap; }
+    .primary-button.compact { padding:9px 12px; border-radius:4px; background:#262571; color:#fff; font-size:11px; text-decoration:none; }
+    .menu-toggle { display:none; }
+    @media (max-width:900px) {
+      .topbar { min-height:68px; gap:12px; padding:0 18px; }
+      .brand jhub-brand-logo { width:112px; height:54px; }
+      .menu-toggle { display:block; margin-left:auto; border:1px solid #dce0e8; border-radius:4px; background:#fff; color:#262571; padding:7px 10px; }
+      .desktop-nav { display:none; }
+      .desktop-nav.mobile-open { position:absolute; top:100%; left:0; right:0; display:flex; align-items:stretch; flex-direction:column; gap:0; padding:8px 18px; background:#fff; border-bottom:1px solid #e6e8ee; box-shadow:0 10px 18px #17203318; }
+      .desktop-nav.mobile-open a { padding:12px 8px; border-bottom:1px solid #edf0f4; }
+    }
+    @media (max-width:480px) {
+      .topbar { gap:8px; padding:0 12px; }
+      .brand { gap:5px; }
+      .brand jhub-brand-logo { width:100px; height:49px; }
+      .brand strong { font-size:9px; }
+      .brand small { font-size:6px; }
+      .nav-actions { gap:8px; }
+      .user-chip { max-width:100px; font-size:10px; }
+      .text-button { font-size:10px; }
+    }
+    @media (max-width:380px) {
+      .brand { gap:4px; }
+      .brand jhub-brand-logo { width:88px; height:43px; }
+      .brand strong { font-size:8px; }
+      .brand small { font-size:6px; }
+      .user-chip { max-width:78px; }
+      .nav-actions { gap:4px; }
+      .primary-button.compact { padding:6px 7px; font-size:9px; }
+      .menu-toggle { padding:5px 7px; }
+    }
+  `]
 })
 export class AppComponent {
   protected readonly auth = inject(AuthStore);
@@ -135,7 +154,6 @@ export class AppComponent {
   );
 
   protected readonly isHome = computed(() => this.navigationUrl() === '/' || this.navigationUrl() === '/landing');
-  protected readonly isAdminRequests = computed(() => ['/admin/requests', '/requests'].includes(this.navigationUrl().split('?')[0]));
   protected readonly isCatalogue = computed(() => false);
   protected readonly isAuth = computed(() => false);
   protected readonly isRegister = computed(() => this.navigationUrl().includes('register'));

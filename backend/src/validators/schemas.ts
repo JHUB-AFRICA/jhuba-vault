@@ -52,6 +52,10 @@ export const requestSchema = z.object({
   ).default([])
 });
 
+export const adminRequestSchema = requestSchema.extend({
+  innovatorId: z.string().uuid()
+});
+
 export const rejectSchema = z.object({
   rejectionReason: z.string().trim().min(1)
 });

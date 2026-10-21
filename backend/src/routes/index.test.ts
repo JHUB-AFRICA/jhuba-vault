@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminRequestSchema,
   adminRequestQuery,
   adminSearchQuery,
   assetSchema,
@@ -34,6 +35,23 @@ describe('request validation', () => {
       teamMembers: []
     });
     expect(result.success).toBe(true);
+  });
+
+  it('requires an innovator id for admin-created requests', () => {
+    const request = {
+      projectName: 'Test',
+      projectAbstract: 'A valid project abstract',
+      loanDays: 7,
+      startDate: '2026-09-28',
+      items: [{ assetId: '00000000-0000-4000-8000-000000000001', quantity: 1 }],
+      teamMembers: []
+    };
+
+    expect(adminRequestSchema.safeParse(request).success).toBe(false);
+    expect(adminRequestSchema.safeParse({
+      ...request,
+      innovatorId: '00000000-0000-4000-8000-000000000002'
+    }).success).toBe(true);
   });
 
   it('rejects invalid asset price and inventory values', () => {
@@ -72,4 +90,8 @@ describe('request validation', () => {
 
 describe('admin search validation', () => {
   it('requires a trimmed query of at least two characters', () => {
-    expect(adminSearchQuery.safeParse({ q: '
+    expect(adminSearchQuery.safeParse({ q: 'a' }).success).toBe(false);
+    expect(adminSearchQuery.safeParse({ q: '  ' }).success).toBe(false);
+    expect(adminSearchQuery.safeParse({ q: ' asset ' }).success).toBe(true);
+  });
+});

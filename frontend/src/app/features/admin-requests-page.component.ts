@@ -5,204 +5,80 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { debounceTime, distinctUntilChanged, finalize, forkJoin, Subject } from 'rxjs';
-import { AdminRequestCounts, RequestService } from '../core/api.service';
-import { AssetCategory, AssetRequest, RequestStatus, Role } from '../core/models';
-import { BrandLogoComponent } from '../shared/brand-logo.component';
-import { AuthStore } from '../state/auth.store';
+import { AdminDashboard, AdminRequestCounts, AdminService, RequestService } from '../core/api.service';
+import { Asset, AssetRequest, RequestStatus, Role, User } from '../core/models';
 
 const DEFAULT_PAGE_SIZE = 8;
 const PAGE_SIZES = [8, 16, 32] as const;
-
-function demoRequest(
-  id: string,
-  projectName: string,
-  projectAbstract: string,
-  innovatorName: string,
-  identificationId: string,
-  assetName: string,
-  assetTag: string,
-  quantity: number,
-  loanDays: number,
-  status: RequestStatus,
-  daysAgo: number
-): AssetRequest {
-  const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
-  const asset = {
-    id: `demo-asset-${id}`,
-    assetTag,
-    name: assetName,
-    category: AssetCategory.IOT_PROTOTYPING,
-    description: 'Sample asset for the request preview.',
-    price: 0,
-    totalQuantity: 5,
-    availableQty: 3,
-    specifications: {},
-    createdAt,
-    updatedAt: createdAt
-  };
-  return {
-    id: `demo-${id}`,
-    projectName,
-    projectAbstract,
-    loanDays,
-    status,
-    startDate: createdAt,
-    expectedReturn: new Date(Date.now() + (loanDays - daysAgo) * 24 * 60 * 60 * 1000).toISOString(),
-    innovatorId: `demo-user-${id}`,
-    innovator: {
-      id: `demo-user-${id}`,
-      fullName: innovatorName,
-      email: 'preview@example.invalid',
-      phoneNumber: '0000000000',
-      identificationId,
-      department: 'Innovation',
-      role: Role.INNOVATOR
-    },
-    teamMembers: [],
-    requestItems: [{ id: `demo-item-${id}`, assetId: asset.id, quantity, asset }],
-    createdAt,
-    updatedAt: createdAt
-  };
+type TrendStatus = 'total' | 'pending' | 'approved' | 'rejected' | 'overdue';
+interface CreateRequestItem { assetId: string; quantity: number; }
+interface CreateRequestForm {
+  innovatorId: string;
+  projectName: string;
+  projectAbstract: string;
+  loanDays: number;
+  startDate: string;
 }
-
-const DEMO_REQUESTS: AssetRequest[] = [
-  demoRequest('0001', 'Smart Greenhouse Monitor', 'Monitor soil moisture and temperature for campus greenhouse trials.', 'John Mwangi', 'STU24135', 'Raspberry Pi 4', 'IOT-0042', 3, 30, RequestStatus.PENDING, 2),
-  demoRequest('0002', 'AI-Powered Waste Sorting', 'Prototype an automated recycling sorter for shared campus spaces.', 'Aisha Wanjiku', 'STU23890', 'Arduino Uno R3', 'IOT-0018', 2, 45, RequestStatus.APPROVED, 4),
-  demoRequest('0003', 'Campus Network Upgrade', 'Measure wireless coverage across the student innovation hub.', 'Brian Otieno', 'STU45678', 'Network Switch', 'NET-0011', 1, 60, RequestStatus.CHECKED_OUT, 18),
-  demoRequest('0004', 'Weather Station IoT', 'Collect local weather data for an open research dashboard.', 'Sarah Kimani', 'STU50765', 'Sensor Kit', 'IOT-0031', 2, 30, RequestStatus.RETURNED, 14),
-  demoRequest('0005', 'Robotics Prototype', 'Build a small autonomous delivery robot for indoor testing.', 'David Ochieng', 'STU43210', 'Arduino Motor Driver', 'IOT-0026', 1, 45, RequestStatus.REJECTED, 8),
-  demoRequest('0006', 'Smart Farm Irrigation', 'Test automated irrigation controls in a greenhouse plot.', 'Grace Njeri', 'STU77223', 'Raspberry Pi 4', 'IOT-0042', 2, 30, RequestStatus.PENDING, 1),
-  demoRequest('0007', 'Drone Survey Mapping', 'Capture aerial imagery for a campus land-use map.', 'Peter Kamau', 'STU66778', 'Camera Module', 'AV-0020', 1, 60, RequestStatus.APPROVED, 6),
-  demoRequest('0008', 'Smart Classroom Sensor', 'Track indoor air quality during classroom occupancy.', 'Mercy Achieng', 'STU33445', 'Environmental Sensor', 'IOT-0037', 2, 30, RequestStatus.OVERDUE, 50),
-  demoRequest('0009', 'Solar Power Monitor', 'Measure output from a small solar panel installation.', 'Esther Wambui', 'STU59241', 'Voltage Sensor', 'IOT-0051', 2, 30, RequestStatus.PENDING, 3),
-  demoRequest('0010', 'Campus Help Desk Display', 'Build a live information display for the student support desk.', 'Kevin Maina', 'STU18563', 'Raspberry Pi 4', 'IOT-0042', 1, 45, RequestStatus.APPROVED, 9),
-  demoRequest('0011', 'Water Quality Tracker', 'Prototype a portable sensor for monitoring water samples.', 'Lydia Atieno', 'STU74832', 'Sensor Kit', 'IOT-0031', 2, 30, RequestStatus.CHECKED_OUT, 11),
-  demoRequest('0012', 'Library Occupancy Counter', 'Estimate library occupancy using a low-power sensor node.', 'Samuel Kiptoo', 'STU63018', 'Environmental Sensor', 'IOT-0037', 1, 21, RequestStatus.RETURNED, 19),
-  demoRequest('0013', 'Assistive Navigation Aid', 'Test a proximity alert device for indoor navigation.', 'Faith Naliaka', 'STU41726', 'Ultrasonic Sensor', 'IOT-0029', 3, 45, RequestStatus.PENDING, 5),
-  demoRequest('0014', 'Workshop Safety Alarm', 'Create a temperature alert for the student fabrication workshop.', 'Mark Muthoni', 'STU28194', 'Arduino Uno R3', 'IOT-0018', 1, 30, RequestStatus.REJECTED, 12),
-  demoRequest('0015', 'Digital Noticeboard', 'Create an accessible noticeboard for campus announcements.', 'Irene Chebet', 'STU90135', 'Display Module', 'AV-0034', 1, 60, RequestStatus.APPROVED, 15),
-  demoRequest('0016', 'Greenhouse Ventilation', 'Automate a fan controller based on greenhouse temperature.', 'Joseph Kariuki', 'STU36520', 'Relay Module', 'IOT-0022', 2, 30, RequestStatus.OVERDUE, 55),
-  demoRequest('0017', 'Smart Waste Bin', 'Evaluate fill-level monitoring for recycling bins.', 'Ruth Nyambura', 'STU54017', 'Ultrasonic Sensor', 'IOT-0029', 2, 30, RequestStatus.PENDING, 7),
-  demoRequest('0018', 'Portable Network Lab', 'Set up a portable practice network for student workshops.', 'Dennis Ouma', 'STU81243', 'Network Switch', 'NET-0011', 1, 45, RequestStatus.CHECKED_OUT, 20),
-  demoRequest('0019', 'Assistive Reading Station', 'Prototype a compact reading station with audio controls.', 'Miriam Wekesa', 'STU27641', 'USB Headset', 'AV-0012', 2, 30, RequestStatus.RETURNED, 22),
-  demoRequest('0020', 'Bicycle Safety Tracker', 'Test a location beacon and motion sensor for bicycle safety.', 'Collins Barasa', 'STU49358', 'GPS Module', 'IOT-0057', 1, 60, RequestStatus.APPROVED, 10),
-  demoRequest('0021', 'Rainwater Collection Alert', 'Notify the facilities team when a tank reaches capacity.', 'Diana Njoki', 'STU30876', 'Water Level Sensor', 'IOT-0060', 2, 30, RequestStatus.PENDING, 2),
-  demoRequest('0022', 'Robotics Club Controller', 'Build a reusable controller for student robotics exercises.', 'Victor Sande', 'STU65820', 'Arduino Uno R3', 'IOT-0018', 3, 45, RequestStatus.REJECTED, 16),
-  demoRequest('0023', 'Lecture Capture Pilot', 'Evaluate a simple lecture capture setup in a seminar room.', 'Alice Muli', 'STU17496', 'USB Camera', 'AV-0041', 1, 30, RequestStatus.APPROVED, 13),
-  demoRequest('0024', 'Indoor Garden Assistant', 'Track light and soil conditions for an indoor garden prototype.', 'Noah Kibet', 'STU82605', 'Light Sensor', 'IOT-0063', 2, 21, RequestStatus.OVERDUE, 48)
-];
 
 @Component({
   selector: 'jhub-admin-requests-page',
   standalone: true,
-  imports: [DatePipe, FormsModule, RouterLink, BrandLogoComponent, UpperCasePipe],
+  imports: [DatePipe, FormsModule, RouterLink, UpperCasePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="workspace">
-      <aside class="sidebar" [class.sidebar-open]="mobileNavOpen()" aria-label="Administration navigation">
-        <a class="sidebar-brand" routerLink="/admin/dashboard" aria-label="JHUB Africa home">
-          <jhub-brand-logo logo="jhub-africa" variant="sidebar-logo"></jhub-brand-logo>
-        </a>
-        <nav class="side-nav">
-          <a routerLink="/admin/dashboard"><i class="pi pi-home"></i><span>Dashboard</span></a>
-          <a routerLink="/admin/requests" class="active" aria-current="page"><i class="pi pi-clipboard"></i><span>Requests</span></a>
-          <a routerLink="/admin/inventory"><i class="pi pi-database"></i><span>Inventory</span></a>
-          <a routerLink="/admin/users"><i class="pi pi-users"></i><span>Users</span></a>
-          <a routerLink="/admin/audit-log"><i class="pi pi-file"></i><span>Audit Log</span></a>
-          <a routerLink="/admin/settings"><i class="pi pi-cog"></i><span>Settings</span></a>
-        </nav>
-        <div class="sidebar-account">
-          <a class="account-card" routerLink="/admin/dashboard">
-            @if (auth.user()?.avatarUrl; as avatarUrl) {
-              <img class="avatar account-avatar" [src]="avatarUrl" alt="">
-            } @else {
-              <span class="avatar account-avatar">{{ initials(auth.user()?.fullName || 'Administrator') }}</span>
-            }
-            <span class="account-name"><strong>{{ auth.user()?.fullName || 'Administrator' }}</strong><small>Administrator</small></span>
-          </a>
-          <button type="button" class="sign-out" (click)="auth.signOut()"><i class="pi pi-sign-out"></i> Sign Out</button>
+    <main class="content">
+      <div class="page-meta">
+        <p class="eyebrow">ADMINISTRATION / REQUESTS</p>
+        <div class="system-meta">
+          <span class="date-chip"><i class="pi pi-calendar"></i>{{ today | date:'EEEE, MMMM d, y' }}</span>
+          <span class="online-chip" [class.offline]="pageError()" [class.checking]="!statusCounts() && !pageError()"><i></i>{{ pageError() ? 'System Offline' : statusCounts() ? 'System Online' : 'Connecting…' }}</span>
         </div>
-      </aside>
+      </div>
 
-      @if (mobileNavOpen()) {
-        <button class="nav-scrim" type="button" aria-label="Close navigation" (click)="mobileNavOpen.set(false)"></button>
+      <section class="page-heading">
+        <div>
+          <h1><span>Request</span> <em>Management</em></h1>
+          <p>Review and manage asset requests from innovators. Approve, reject or view detailed information.</p>
+        </div>
+        <button type="button" class="primary-button add-button" (click)="openCreate()"><i class="pi pi-plus"></i> Add Request</button>
+      </section>
+
+      @if (historyError()) {
+        <p class="history-error" role="status">Monthly request trends are unavailable. {{ historyError() }}</p>
       }
-
-      <div class="main-column">
-        <header class="topbar">
-          <button type="button" class="menu-toggle" aria-label="Open navigation" (click)="mobileNavOpen.set(!mobileNavOpen())"><i class="pi pi-bars"></i></button>
-          <a class="university-brand" routerLink="/admin/dashboard">
-            <jhub-brand-logo logo="jkuat" variant="university-logo"></jhub-brand-logo>
-            <span><strong>JOMO KENYATTA UNIVERSITY</strong><small>OF AGRICULTURE AND TECHNOLOGY</small></span>
-          </a>
-          <label class="global-search">
-            <i class="pi pi-search"></i>
-            <input aria-label="Search requests" maxlength="100" placeholder="Search requests, users, assets, or anything…" [ngModel]="search()" (ngModelChange)="onSearch($event)">
-          </label>
-          <span class="notification-indicator" aria-hidden="true"><i class="pi pi-bell"></i><span></span></span>
-          <a class="top-user" routerLink="/admin/dashboard">
-            @if (auth.user()?.avatarUrl; as avatarUrl) {
-              <img class="avatar" [src]="avatarUrl" alt="">
-            } @else {
-              <span class="avatar">{{ initials(auth.user()?.fullName || 'Administrator') }}</span>
-            }
-            <span class="top-user-copy"><strong>{{ auth.user()?.fullName || 'Administrator' }}</strong><small>Administrator</small></span>
-            <i class="pi pi-chevron-down"></i>
-          </a>
-        </header>
-
-        <main class="content">
-          <div class="page-meta">
-            <nav class="breadcrumbs" aria-label="Breadcrumb">
-              <a routerLink="/admin/dashboard" aria-label="Admin home"><i class="pi pi-home"></i></a>
-              <i class="pi pi-angle-right"></i>
-              <a routerLink="/admin/dashboard">Admin Portal</a>
-              <i class="pi pi-angle-right"></i>
-              <span>Requests</span>
-            </nav>
-            <div class="system-meta">
-              <span class="date-chip"><i class="pi pi-calendar"></i>{{ today | date:'EEEE, MMMM d, y' }}</span>
-              <span class="online-chip" [class.offline]="pageError()" [class.checking]="!statusCounts() && !pageError()"><i></i>{{ pageError() ? 'System Offline' : statusCounts() ? 'System Online' : 'Connecting…' }}</span>
-            </div>
-          </div>
-
-          <section class="page-heading">
-            <h1>Request Management</h1>
-            <p>Review and manage asset requests from innovators. Approve, reject or view detailed information.</p>
-          </section>
+      @if (createError()) {
+        <p class="page-message error" role="alert">{{ createError() }}</p>
+      }
 
           <section class="metric-grid" aria-label="Request statistics">
             <button type="button" class="metric-card total-card" [class.selected]="status() === ''" [attr.aria-pressed]="status() === ''" (click)="setStatus('')">
               <span class="metric-icon"><i class="pi pi-file"></i></span>
               <span class="metric-copy"><small>Total Requests</small><strong>{{ totalRequests() ?? '—' }}</strong></span>
-              <small class="metric-note">All request statuses</small>
+              <small class="metric-note">All request statuses @if (trendLabel('total'); as trend) { · {{ trend }} }</small>
             </button>
             <button type="button" class="metric-card pending-card" [class.selected]="status() === RequestStatus.PENDING" [attr.aria-pressed]="status() === RequestStatus.PENDING" (click)="setStatus(RequestStatus.PENDING)">
               <span class="metric-icon"><i class="pi pi-clock"></i></span>
               <span class="metric-copy"><small>Pending</small><strong>{{ countFor(RequestStatus.PENDING) }}</strong></span>
-              <small class="metric-note">Awaiting review</small>
+              <small class="metric-note">Awaiting review @if (trendLabel('pending'); as trend) { · {{ trend }} }</small>
             </button>
             <button type="button" class="metric-card approved-card" [class.selected]="status() === RequestStatus.APPROVED" [attr.aria-pressed]="status() === RequestStatus.APPROVED" (click)="setStatus(RequestStatus.APPROVED)">
               <span class="metric-icon"><i class="pi pi-check-circle"></i></span>
               <span class="metric-copy"><small>Approved</small><strong>{{ countFor(RequestStatus.APPROVED) }}</strong></span>
-              <small class="metric-note">Approved requests</small>
+              <small class="metric-note">Approved requests @if (trendLabel('approved'); as trend) { · {{ trend }} }</small>
             </button>
             <button type="button" class="metric-card rejected-card" [class.selected]="status() === RequestStatus.REJECTED" [attr.aria-pressed]="status() === RequestStatus.REJECTED" (click)="setStatus(RequestStatus.REJECTED)">
               <span class="metric-icon"><i class="pi pi-times-circle"></i></span>
               <span class="metric-copy"><small>Rejected</small><strong>{{ countFor(RequestStatus.REJECTED) }}</strong></span>
-              <small class="metric-note">Rejected requests</small>
+              <small class="metric-note">Rejected requests @if (trendLabel('rejected'); as trend) { · {{ trend }} }</small>
             </button>
             <button type="button" class="metric-card overdue-card" [class.selected]="status() === RequestStatus.OVERDUE" [attr.aria-pressed]="status() === RequestStatus.OVERDUE" (click)="setStatus(RequestStatus.OVERDUE)">
               <span class="metric-icon"><i class="pi pi-calendar-plus"></i></span>
               <span class="metric-copy"><small>Overdue</small><strong>{{ countFor(RequestStatus.OVERDUE) }}</strong></span>
-              <small class="metric-note">Past expected return</small>
+              <small class="metric-note">Past expected return @if (trendLabel('overdue'); as trend) { · {{ trend }} }</small>
             </button>
           </section>
           <section class="requests-panel" aria-labelledby="requests-title">
             <div class="panel-heading"><h2 id="requests-title">Requests</h2></div>
-            @if (demoMode()) {
-              <p class="demo-notice" role="status">Sample preview data only — these generated records are not saved, and request actions are disabled.</p>
-            }
             <div class="filter-toolbar">
               <div class="status-filters" role="group" aria-label="Filter requests by status">
                 <button type="button" [class.selected]="status() === ''" [attr.aria-pressed]="status() === ''" (click)="setStatus('')">All <span>({{ totalRequests() ?? '—' }})</span></button>
@@ -233,7 +109,7 @@ const DEMO_REQUESTS: AssetRequest[] = [
 
             <div class="table-scroll">
               <div class="table-head request-grid">
-                <label class="selection-checkbox"><input type="checkbox" aria-label="Select all requests on this page" [checked]="allOnPageSelected()" [indeterminate]="someOnPageSelected() && !allOnPageSelected()" [disabled]="demoMode()" (change)="togglePageSelection($event)"></label><span>Request<br>ID</span><span>Project</span><span>Innovator</span><span>Assets</span><span>Loan<br>period</span><span>Requested<br>on</span><span>Status</span><span>Actions</span><span></span>
+                <label class="selection-checkbox"><input type="checkbox" aria-label="Select all requests on this page" [checked]="allOnPageSelected()" [indeterminate]="someOnPageSelected() && !allOnPageSelected()" (change)="togglePageSelection($event)"></label><span>Request ID</span><span>Project</span><span>Innovator</span><span>Assets</span><span>Loan Period</span><span>Requested On</span><span>Status</span><span>Actions</span>
               </div>
               @if (loading()) {
                 <div class="table-state">Loading requests…</div>
@@ -244,14 +120,9 @@ const DEMO_REQUESTS: AssetRequest[] = [
               } @else {
                 @for (request of requests(); track request.id) {
                   <article class="request-row request-grid">
-                    <label class="selection-checkbox"><input type="checkbox" [attr.aria-label]="'Select request ' + request.id" [checked]="isSelected(request.id)" [disabled]="demoMode()" (change)="toggleSelection(request.id, $event)"></label>
-                    @if (demoMode()) {
-                      <span class="request-id">REQ-{{ request.id.slice(-4) | uppercase }}</span>
-                      <span class="project-cell"><strong>{{ request.projectName }}</strong><small>{{ request.projectAbstract }}</small></span>
-                    } @else {
-                      <a class="request-id" [routerLink]="['/app/requests', request.id]">REQ-{{ request.id.slice(-4) | uppercase }}</a>
-                      <a class="project-cell" [routerLink]="['/app/requests', request.id]"><strong>{{ request.projectName }}</strong><small>{{ request.projectAbstract }}</small></a>
-                    }
+                    <label class="selection-checkbox"><input type="checkbox" [attr.aria-label]="'Select request ' + request.id" [checked]="isSelected(request.id)" (change)="toggleSelection(request.id, $event)"></label>
+                    <a class="request-id" [routerLink]="['/app/requests', request.id]">REQ-{{ request.id.slice(-4) | uppercase }}</a>
+                    <a class="project-cell" [routerLink]="['/app/requests', request.id]"><strong>{{ request.projectName }}</strong><small>{{ request.projectAbstract }}</small></a>
                     <span class="innovator-cell">
                       <span class="avatar initials-avatar">{{ initials(request.innovator?.fullName) }}</span>
                       <span><strong>{{ request.innovator?.fullName || 'Unknown innovator' }}</strong><small>{{ request.innovator?.identificationId || '—' }}</small></span>
@@ -265,22 +136,14 @@ const DEMO_REQUESTS: AssetRequest[] = [
                     <span class="date-cell">{{ request.createdAt | date:'MMM d, y' }}<small>{{ request.createdAt | date:'h:mm a' }}</small></span>
                     <span class="status-cell"><span class="status-pill" [class]="'status-pill ' + request.status.toLowerCase()"><i class="pi" [class]="statusIcon(request.status)"></i>{{ statusLabel(request.status) }}</span></span>
                     <div class="row-actions">
-                      @if (demoMode()) {
-                        <span class="action-button view-button disabled-action" aria-disabled="true">View</span>
-                      } @else {
-                        <a class="action-button view-button" [routerLink]="['/app/requests', request.id]"><i class="pi pi-eye"></i><span>View</span></a>
-                      }
-                      <button class="action-button approve-button" type="button" [disabled]="demoMode() || request.status !== RequestStatus.PENDING || busyId() === request.id" (click)="approve(request)"><i class="pi pi-check-circle"></i><span>Approve</span></button>
-                      <button class="action-button reject-button" type="button" [disabled]="demoMode() || request.status !== RequestStatus.PENDING || busyId() === request.id" (click)="reject(request)"><i class="pi pi-times"></i><span>Reject</span></button>
-                    </div>
-                    <div class="more-cell">
-                      <button type="button" class="more-button" [disabled]="demoMode()" [attr.aria-label]="'More actions for ' + request.projectName" [attr.aria-expanded]="openActionId() === request.id" (click)="toggleActions(request.id)"><i class="pi pi-ellipsis-v"></i></button>
-                      @if (openActionId() === request.id) {
-                        <div class="action-menu">
-                          @if (request.status === RequestStatus.APPROVED) { <button type="button" [disabled]="busyId() === request.id" (click)="checkout(request)">Check out asset</button> }
-                          @if (request.status === RequestStatus.CHECKED_OUT) { <button type="button" [disabled]="busyId() === request.id" (click)="returnRequest(request)">Mark returned</button> }
-                          @if (request.status !== RequestStatus.APPROVED && request.status !== RequestStatus.CHECKED_OUT) { <span>No further actions</span> }
-                        </div>
+                      <a class="action-button view-button" [routerLink]="['/app/requests', request.id]"><i class="pi pi-eye"></i><span>View</span></a>
+                      @if (request.status === RequestStatus.PENDING) {
+                        <button class="action-button approve-button" type="button" [disabled]="busyId() === request.id" (click)="approve(request)"><i class="pi pi-check-circle"></i><span>Approve</span></button>
+                        <button class="action-button reject-button" type="button" [disabled]="busyId() === request.id" (click)="reject(request)"><i class="pi pi-times"></i><span>Reject</span></button>
+                      } @else if (request.status === RequestStatus.APPROVED) {
+                        <button class="action-button approve-button" type="button" [disabled]="busyId() === request.id" (click)="checkout(request)"><i class="pi pi-sign-out"></i><span>Check Out</span></button>
+                      } @else if (request.status === RequestStatus.CHECKED_OUT) {
+                        <button class="action-button return-button" type="button" [disabled]="busyId() === request.id" (click)="returnRequest(request)"><i class="pi pi-replay"></i><span>Mark Returned</span></button>
                       }
                     </div>
                   </article>
@@ -309,68 +172,94 @@ const DEMO_REQUESTS: AssetRequest[] = [
             }
             @if (message()) { <p class="feedback" [class.error]="messageType() === 'error'" role="status">{{ message() }}</p> }
           </section>
-        </main>
+    </main>
+
+    @if (createDialogOpen()) {
+      <div class="modal-backdrop" (click)="closeCreate()">
+        <section class="create-dialog" role="dialog" aria-modal="true" aria-labelledby="create-request-title" (click)="$event.stopPropagation()">
+          <header class="dialog-heading">
+            <div><p class="eyebrow">ADMINISTRATION / REQUESTS</p><h2 id="create-request-title">Add Request</h2></div>
+            <button type="button" class="dialog-close" aria-label="Close dialog" [disabled]="creating()" (click)="closeCreate()">×</button>
+          </header>
+          @if (createLoading()) {
+            <p class="dialog-message">Loading innovators and available assets…</p>
+          } @else if (!createError() || innovators().length || availableAssets().length) {
+            <form class="create-form" (ngSubmit)="createRequest()">
+              <label>Innovator
+                <select name="innovatorId" [(ngModel)]="createForm.innovatorId" required>
+                  <option value="" disabled>Select an innovator</option>
+                  @for (innovator of innovators(); track innovator.id) {
+                    <option [value]="innovator.id">{{ innovator.fullName }} · {{ innovator.identificationId }}</option>
+                  }
+                </select>
+              </label>
+              @if (!innovators().length) { <p class="dialog-message">No innovator accounts are available.</p> }
+              <label>Project name
+                <input name="projectName" [(ngModel)]="createForm.projectName" maxlength="120" required>
+              </label>
+              <label>Project details
+                <textarea name="projectAbstract" [(ngModel)]="createForm.projectAbstract" rows="3" minlength="20" maxlength="2000" required></textarea>
+              </label>
+              <div class="create-fields">
+                <label>Loan period (days)
+                  <input name="loanDays" type="number" min="1" max="365" [(ngModel)]="createForm.loanDays" required>
+                </label>
+                <label>Start date
+                  <input name="startDate" type="date" [(ngModel)]="createForm.startDate" required>
+                </label>
+              </div>
+              <fieldset class="create-assets">
+                <legend>Requested assets</legend>
+                @for (asset of availableAssets(); track asset.id) {
+                  <label class="create-asset-option">
+                    <input type="checkbox" [checked]="isCreateAssetSelected(asset.id)" (change)="toggleCreateAsset(asset.id, $event)">
+                    <span><strong>{{ asset.name }}</strong><small>{{ asset.assetTag }} · {{ asset.availableQty }} available</small></span>
+                    @if (isCreateAssetSelected(asset.id)) {
+                      <input class="asset-quantity" type="number" min="1" [max]="asset.availableQty" [attr.aria-label]="'Quantity for ' + asset.name" [ngModel]="createQuantity(asset.id)" (ngModelChange)="setCreateQuantity(asset.id, $event)" [name]="'quantity-' + asset.id">
+                    }
+                  </label>
+                } @empty {
+                  <p class="dialog-message">No assets are currently available to request.</p>
+                }
+              </fieldset>
+              @if (createError()) { <p class="dialog-error" role="alert">{{ createError() }}</p> }
+              <footer class="dialog-actions">
+                <button type="button" class="secondary-button" [disabled]="creating()" (click)="closeCreate()">Cancel</button>
+                <button type="submit" class="primary-button" [disabled]="creating() || !innovators().length || !availableAssets().length">
+                  {{ creating() ? 'Creating…' : 'Create Request' }}
+                </button>
+              </footer>
+            </form>
+          } @else {
+            <div class="dialog-message error" role="alert">{{ createError() }} <button type="button" (click)="loadCreateOptions()">Try again</button></div>
+          }
+        </section>
       </div>
-    </div>
+    }
   `,
   styles: [`
-    :host { display:block; min-height:100vh; color:#172033; --sidebar-width:clamp(154px,12vw,190px); }
-    .workspace { min-height:100vh; background:#f3f6fb; }
-    .sidebar { position:fixed; z-index:20; inset:0 auto 0 0; display:flex; flex-direction:column; width:var(--sidebar-width); background:#0d1c30; color:#dce5f2; }
-    .sidebar-brand { height:36px; margin:12px 10px 10px; display:flex; align-items:center; justify-content:center; border-radius:7px; background:#fff; }
-    .sidebar-brand jhub-brand-logo { width:100%; justify-content:center; }
-    .side-nav { display:grid; gap:2px; padding:0 7px; }
-    .side-nav a { display:flex; align-items:center; gap:8px; min-height:27px; padding:0 9px; border-radius:7px; color:#c3cedd; font-size:9px; text-decoration:none; transition:background .15s,color .15s; }
-    .side-nav a i { width:11px; font-size:10px; }
-    .side-nav a:hover { background:#ffffff12; color:#fff; }
-    .side-nav a.active { background:#2160ed; color:#fff; font-weight:600; }
-    .sidebar-account { margin-top:auto; padding:8px 8px 10px; border-top:1px solid #ffffff0e; }
-    .account-card { display:flex; align-items:center; gap:8px; padding:6px; border-radius:6px; color:#fff; text-decoration:none; background:#15263b; }
-    .avatar { width:23px; height:23px; flex:0 0 23px; border:1px solid #d2dce9; border-radius:50%; background:#d9e7f2; color:#17334d; display:inline-grid; place-items:center; object-fit:cover; font-size:8px; font-weight:700; }
-    .account-avatar { width:24px; height:24px; flex-basis:24px; }
-    .account-name,.top-user-copy { min-width:0; display:grid; gap:2px; }
-    .account-name strong,.top-user-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9px; font-weight:600; }
-    .account-name small,.top-user-copy small { color:#a6b3c5; font-size:8px; }
-    .sign-out { display:flex; align-items:center; gap:8px; width:100%; margin-top:5px; padding:7px; border:0; background:transparent; color:#aab6c6; text-align:left; font-size:9px; }
-    .sign-out:hover { color:#fff; }
-    .sign-out i { font-size:10px; }
-    .main-column { min-height:100vh; margin-left:var(--sidebar-width); }
-    .topbar { height:45px; position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:clamp(12px,2.2vw,28px); padding:0 clamp(16px,2.5vw,30px); background:#fff; border-bottom:1px solid #e5eaf1; }
-    .university-brand { flex:none; display:flex; align-items:center; gap:6px; color:#12233d; text-decoration:none; }
-    .university-brand jhub-brand-logo { width:20px; height:20px; }
-    .university-brand span { display:grid; gap:2px; white-space:nowrap; }
-    .university-brand strong { font-size:8px; line-height:1; letter-spacing:.15px; }
-    .university-brand small { font-size:6px; letter-spacing:.3px; }
-    .global-search,.table-search { display:flex; align-items:center; gap:8px; height:25px; padding:0 9px; border:1px solid #e0e6ef; border-radius:14px; background:#f9fafc; color:#8a9ab0; }
-    .global-search { flex:1; max-width:340px; margin-right:auto; }
-    .global-search i,.table-search i { font-size:10px; }
-    .global-search input,.table-search input { min-width:0; width:100%; padding:0; border:0; outline:0; background:transparent; color:#263850; font-size:8px; }
-    .global-search input::placeholder,.table-search input::placeholder { color:#97a5b8; }
-    .notification-indicator { position:relative; width:20px; height:25px; display:grid; place-items:center; color:#53647a; }
-    .notification-indicator i { font-size:12px; }
-    .notification-indicator span { position:absolute; top:2px; right:1px; width:5px; height:5px; border:1px solid #fff; border-radius:50%; background:#ef4444; }
-    .top-user { display:flex; align-items:center; gap:7px; color:#1d2b40; text-decoration:none; }
-    .top-user .pi-chevron-down { margin-left:5px; color:#8290a4; font-size:8px; }
-    .top-user-copy strong { font-size:8px; }
-    .top-user-copy small { font-size:7px; }
-    .content { width:min(100%,1200px); margin:0 auto; padding:28px clamp(20px,3vw,36px) 42px; }
+    :host { display:block; min-height:100vh; color:#172033; }
+    .content { width:100%; max-width:1720px; margin:0 auto; padding:34px clamp(24px,4vw,64px) 52px; }
     .page-meta { min-height:32px; display:flex; justify-content:space-between; align-items:center; gap:16px; }
-    .breadcrumbs { display:flex; align-items:center; gap:9px; color:#4c5b71; font-size:12px; }
-    .breadcrumbs a { color:#1760f5; text-decoration:none; }
-    .breadcrumbs .pi { font-size:11px; }
-    .breadcrumbs>i { color:#9aa8bb; font-size:7px; }
+    .eyebrow { margin:0; color:#3ea945; font-size:10px; font-weight:800; letter-spacing:1.6px; }
     .system-meta { display:flex; align-items:center; gap:9px; }
     .date-chip,.online-chip { min-height:30px; display:inline-flex; align-items:center; gap:7px; padding:0 12px; border:1px solid #e0e7f0; border-radius:7px; background:#fff; color:#52647d; white-space:nowrap; font-size:11px; }
     .date-chip i { color:#3978ef; font-size:12px; }
+    .avatar { width:30px; height:30px; flex:0 0 30px; display:inline-grid; place-items:center; border:1px solid #d2dce9; border-radius:50%; background:#d9e7f2; color:#17334d; font-size:10px; font-weight:700; }
     .online-chip { border-color:#c9f1dd; border-radius:12px; background:#edfff6; color:#07834e; font-weight:600; }
     .online-chip i { width:7px; height:7px; border-radius:50%; background:#08b879; }
     .online-chip.offline { color:#b4232c; border-color:#ffd1d4; background:#fff4f4; }
     .online-chip.offline i { background:#e33e4c; }
     .online-chip.checking { color:#7b8797; border-color:#e0e7f0; background:#f8fafc; }
     .online-chip.checking i { background:#93a0b0; }
-    .page-heading { margin:16px 0 25px; }
-    .page-heading h1 { margin:0; color:#262571; font:400 clamp(34px,4vw,48px)/1.08 Georgia,serif; letter-spacing:-.5px; }
-    .page-heading p { margin:9px 0 0; color:#667083; font-size:14px; line-height:1.5; }
+    .page-heading { display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin:14px 0 28px; }
+    .page-heading h1 { margin:0; color:#262571; font:400 clamp(38px,4vw,54px)/1.08 Georgia,serif; letter-spacing:-.5px; }
+    .page-heading h1 em { color:#3ea945; font-weight:400; }
+    .page-heading p { max-width:690px; margin:10px 0 0; color:#667083; font-size:14px; line-height:1.5; }
+    .add-button { flex:none; display:inline-flex; align-items:center; gap:8px; min-height:42px; padding:0 18px; border:0; border-radius:5px; background:#2a4695; color:#fff; font-size:13px; font-weight:700; }
+    .add-button:hover { background:#262571; }
+    .history-error,.page-message { margin:0 0 14px; padding:10px 13px; border:1px solid #e6e8ee; background:#fff; color:#667083; font-size:12px; }
+    .page-message.error,.history-error { border-color:#ffd1d4; background:#fff6f6; color:#a51f20; }
     .metric-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; margin-bottom:24px; }
     .metric-card { min-width:0; width:100%; min-height:112px; display:grid; grid-template-columns:44px 1fr; grid-template-rows:1fr auto; align-items:center; column-gap:12px; padding:16px; border:1px solid #e6e8ee; border-radius:8px; background:#fff; color:inherit; text-align:left; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
     .metric-card:hover,.metric-card.selected { border-color:#262571; box-shadow:0 0 0 1px #2625711a; }
@@ -380,7 +269,7 @@ const DEMO_REQUESTS: AssetRequest[] = [
     .metric-copy { display:grid; gap:4px; }
     .metric-copy small { color:#667083; font-size:12px; }
     .metric-copy strong { color:#262571; font:30px/1 Georgia,serif; }
-    .metric-note { grid-column:1 / -1; align-self:end; padding-top:8px; color:#8795a9; font-size:11px; white-space:nowrap; }
+    .metric-note { grid-column:1 / -1; align-self:end; padding-top:8px; color:#8795a9; font-size:11px; line-height:1.4; }
     .metric-note i { margin-right:4px; font-size:10px; }
     .metric-note.growth { color:#13a875; }
     .metric-note.decline { color:#eb4652; }
@@ -394,7 +283,6 @@ const DEMO_REQUESTS: AssetRequest[] = [
     .requests-panel { position:relative; overflow:visible; border:1px solid #e6e8ee; border-radius:8px; background:#fff; box-shadow:0 1px 2px #20324c08; }
     .panel-heading { min-height:58px; display:flex; align-items:center; padding:0 20px; }
     .panel-heading h2 { margin:0; color:#262571; font:24px Georgia,serif; }
-    .demo-notice { margin:0 18px 14px; padding:10px 12px; border-left:3px solid #89be32; background:#f5f7fb; color:#586174; font-size:12px; line-height:1.5; }
     .filter-toolbar { position:relative; display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:0 18px 16px; }
     .status-filters { flex:1 1 100%; min-height:42px; display:flex; align-content:flex-start; align-items:center; flex-wrap:wrap; gap:5px 8px; padding:5px; border:1px solid #e6e8ee; border-radius:6px; background:#f8fafc; }
     .status-filters button { min-height:30px; display:inline-flex; align-items:center; gap:6px; padding:0 11px; border:0; border-radius:5px; background:transparent; color:#394b63; white-space:nowrap; font-size:12px; }
@@ -416,7 +304,7 @@ const DEMO_REQUESTS: AssetRequest[] = [
     .filter-actions { display:flex; justify-content:flex-end; gap:6px; }
     .filter-popover .clear-filter { border:1px solid #dce0e8; background:#fff; color:#52647d; }
     .table-scroll { overflow-x:auto; }
-    .request-grid { display:grid; grid-template-columns:30px 70px minmax(130px,1.1fr) minmax(130px,1fr) minmax(120px,1fr) 65px 95px 110px minmax(235px,1.7fr) 18px; column-gap:8px; align-items:center; }
+    .request-grid { display:grid; grid-template-columns:24px 86px minmax(210px,1.45fr) minmax(160px,1fr) minmax(150px,1fr) 82px 105px 110px minmax(240px,1.35fr); column-gap:10px; align-items:center; }
     .table-head { min-height:52px; padding:0 18px; border-top:1px solid #edf0f4; border-bottom:1px solid #e6e8ee; background:#f8fafc; color:#586174; font-size:11px; line-height:1.35; font-weight:700; letter-spacing:.35px; text-transform:uppercase; }
     .request-row { position:relative; min-height:94px; padding:12px 18px; border-bottom:1px solid #edf0f4; }
     .request-row:last-child { border-bottom:0; }
@@ -442,25 +330,18 @@ const DEMO_REQUESTS: AssetRequest[] = [
     .date-cell small { padding-top:4px; color:#7c8492; font-size:10px; }
     .status-pill { width:max-content; max-width:100%; min-width:76px; min-height:27px; display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:4px 9px; border:1px solid #ffe09b; border-radius:14px; background:#fffaf0; color:#b87300; font-size:10px; line-height:1.2; }
     .status-pill .pi { font-size:6px; }
-    .status-pill.approved,.status-pill.returned { border-color:#b6f0d5; background:#effdf6; color:#078a58; }
+    .status-pill.approved { border-color:#b6f0d5; background:#effdf6; color:#078a58; }
+    .status-pill.returned { border-color:#ddc8f7; background:#f7f1ff; color:#7844a5; }
     .status-pill.rejected { border-color:#ffc8ce; background:#fff2f3; color:#de3448; }
     .status-pill.checked_out { max-width:100%; min-height:27px; flex-wrap:wrap; border-color:#c8d9ff; background:#f1f6ff; color:#2360e8; }
     .status-pill.overdue { border-color:#e3c8ff; background:#faf3ff; color:#9b3bd0; }
-    .row-actions { display:flex; align-items:center; justify-content:flex-start; gap:6px; min-width:0; }
+    .row-actions { display:flex; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap:6px; min-width:0; }
     .action-button { min-width:0; height:30px; display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:0 9px; border:1px solid #d2e3ff; border-radius:4px; background:#f7faff; color:#2a4695; white-space:nowrap; text-decoration:none; font-size:11px; }
     .action-button i { font-size:12px; }
     .approve-button { border-color:#a8e9ce; background:#f2fff9; color:#0c7b51; }
     .reject-button { border-color:#ffc3c8; background:#fff7f7; color:#c92832; }
+    .return-button { border-color:#c8d9ff; background:#f1f6ff; color:#2360e8; }
     .action-button:disabled { cursor:not-allowed; border-color:#e2e7ed; background:#f8fafc; color:#a9b5c5; }
-    .more-cell { position:relative; }
-    .more-button { width:22px; height:30px; padding:0; border:0; background:transparent; color:#8392a7; }
-    .more-button i { font-size:13px; }
-    .more-button:disabled { cursor:not-allowed; opacity:.45; }
-    .disabled-action { opacity:.55; cursor:not-allowed; }
-    .action-menu { position:absolute; z-index:5; top:30px; right:0; width:160px; display:grid; padding:5px; border:1px solid #e1e7ef; border-radius:5px; background:#fff; box-shadow:0 5px 16px #1b2a3d20; }
-    .action-menu button,.action-menu span { padding:8px; border:0; background:#fff; color:#34465c; text-align:left; font-size:11px; }
-    .action-menu button:hover { background:#f4f7fb; }
-    .action-menu button:disabled { color:#99a5b5; }
     .table-state { min-height:180px; display:flex; justify-content:center; align-items:center; gap:10px; padding:24px; color:#667083; font-size:14px; }
     .table-state.error { color:#b4232c; }
     .table-state button { padding:8px 12px; border:1px solid #dce0e8; border-radius:4px; background:#fff; color:#262571; font-size:12px; }
@@ -475,51 +356,75 @@ const DEMO_REQUESTS: AssetRequest[] = [
     .pagination button:disabled { cursor:not-allowed; color:#b2bdcc; }
     .feedback { margin:10px 18px; color:#078a58; font-size:12px; }
     .feedback.error { color:#b4232c; }
-    .menu-toggle,.nav-scrim { display:none; }
+    .create-dialog { width:min(660px,100%); max-height:90vh; overflow:auto; padding:24px; border-radius:8px; background:#fff; box-shadow:0 20px 60px #17203340; }
+    .dialog-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px; }
+    .dialog-heading h2 { margin:6px 0 0; color:#262571; font:26px Georgia,serif; }
+    .dialog-close { width:30px; height:30px; border:0; background:transparent; color:#687284; font-size:24px; }
+    .dialog-close:disabled { cursor:not-allowed; opacity:.5; }
+    .create-form { display:grid; gap:13px; }
+    .create-form>label,.create-fields label { display:grid; gap:6px; color:#52647d; font-size:12px; font-weight:600; }
+    .create-form input:not([type=checkbox]),.create-form select,.create-form textarea { width:100%; min-height:38px; padding:8px 10px; border:1px solid #dce0e8; border-radius:4px; background:#fff; color:#263850; font-size:13px; }
+    .create-form textarea { resize:vertical; }
+    .create-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .create-assets { max-height:220px; overflow:auto; margin:0; padding:12px; border:1px solid #e6e8ee; border-radius:5px; }
+    .create-assets legend { padding:0 5px; color:#52647d; font-size:12px; font-weight:700; }
+    .create-asset-option { min-height:50px; display:flex; align-items:center; gap:10px; padding:7px 4px; border-bottom:1px solid #edf0f4; cursor:pointer; }
+    .create-asset-option:last-of-type { border-bottom:0; }
+    .create-asset-option>input[type=checkbox] { accent-color:#262571; }
+    .create-asset-option>span { flex:1; min-width:0; }
+    .create-asset-option strong,.create-asset-option small { display:block; }
+    .create-asset-option strong { color:#262571; font-size:12px; }
+    .create-asset-option small { margin-top:3px; color:#7c8492; font-size:10px; }
+    .create-form input.asset-quantity { width:72px; min-height:32px; }
+    .dialog-message { color:#667083; font-size:13px; }
+    .dialog-message.error,.dialog-error { color:#a51f20; font-size:12px; }
+    .dialog-message button { margin-left:8px; border:0; background:transparent; color:#262571; text-decoration:underline; }
+    .dialog-actions { display:flex; justify-content:flex-end; gap:9px; padding-top:5px; }
+    .dialog-actions button { min-height:38px; padding:0 14px; border:1px solid #dce0e8; border-radius:4px; background:#fff; color:#52647d; font-size:12px; }
+    .dialog-actions .primary-button { border-color:#2a4695; background:#2a4695; color:#fff; }
+    .dialog-actions button:disabled { cursor:not-allowed; opacity:.55; }
+    .secondary-button { color:#52647d; }
+    .modal-backdrop { position:fixed; z-index:40; inset:0; display:grid; place-items:center; padding:20px; background:#17203380; }
+    .feedback { margin:10px 18px; color:#078a58; font-size:12px; }
+    .feedback.error { color:#b4232c; }
+    @media (max-width:1100px) {
+      .metric-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .request-grid { min-width:1320px; }
+    }
     @media (max-width:700px) {
-      :host { --sidebar-width:250px; }
-      .sidebar { transform:translateX(-100%); transition:transform .2s ease; }
-      .sidebar.sidebar-open { transform:translateX(0); }
-      .nav-scrim { position:fixed; z-index:15; inset:0; display:block; border:0; background:#0a172866; }
-      .main-column { margin-left:0; }
-      .topbar { gap:11px; padding:0 12px; }
-      .menu-toggle { width:24px; height:26px; flex:none; display:grid; place-items:center; border:0; background:transparent; color:#263850; }
-      .menu-toggle i { font-size:14px; }
-      .university-brand { gap:4px; }
-      .university-brand span { display:none; }
-      .university-brand jhub-brand-logo { width:23px; height:23px; }
-      .global-search { max-width:none; }
-      .top-user-copy,.top-user>.pi-chevron-down { display:none; }
-      .content { width:100%; padding:18px 14px 28px; }
+      .content { padding:24px 14px 32px; }
+      .page-heading { align-items:flex-start; flex-direction:column; }
+      .add-button { align-self:flex-start; }
       .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
       .metric-card:last-child { grid-column:span 2; }
       .page-meta { align-items:flex-start; flex-direction:column; padding:3px 0 6px; }
-      .system-meta { align-self:flex-end; }
+      .system-meta { flex-wrap:wrap; }
       .filter-toolbar { align-items:flex-start; }
       .status-filters { min-width:100%; }
       .table-search { flex:1 1 180px; }
       .table-scroll { padding-bottom:3px; }
-      .request-grid { min-width:1080px; }
+      .request-grid { min-width:1320px; }
       .table-footer { align-items:flex-start; flex-direction:column; padding:9px 10px; }
       .table-footer-controls { width:100%; justify-content:space-between; gap:5px; }
       .pagination { align-self:flex-end; }
+      .create-dialog { padding:18px; }
     }
     @media (max-width:390px) {
-      .global-search { gap:5px; padding:0 7px; }
-      .global-search input { font-size:7px; }
-      .notification-indicator { display:none; }
-      .date-chip { font-size:7px; }
-      .page-heading p { max-width:290px; line-height:1.5; }
+      .date-chip,.online-chip { min-height:28px; padding:0 8px; font-size:10px; }
+      .page-heading > div { width:100%; min-width:0; }
+      .page-heading h1 { font-size:clamp(28px,8.5vw,34px); }
+      .page-heading p { max-width:100%; }
       .metric-card { padding:12px; }
       .metric-copy small { font-size:11px; }
       .metric-note { white-space:normal; }
+      .create-fields { grid-template-columns:1fr; }
     }
   `]
 })
 export class AdminRequestsPageComponent {
   private readonly service = inject(RequestService);
+  private readonly adminService = inject(AdminService);
   private readonly searchChanges = new Subject<string>();
-  protected readonly auth = inject(AuthStore);
   protected readonly statuses = Object.values(RequestStatus);
   protected readonly pageSizes = PAGE_SIZES;
   protected readonly RequestStatus = RequestStatus;
@@ -528,7 +433,8 @@ export class AdminRequestsPageComponent {
   protected readonly loading = signal(true);
   protected readonly pageError = signal<string | null>(null);
   protected readonly statusCounts = signal<AdminRequestCounts | null>(null);
-  protected readonly demoMode = signal(false);
+  protected readonly requestActivity = signal<AdminDashboard['requestActivity']>([]);
+  protected readonly historyError = signal<string | null>(null);
   private readonly legacyBackend = signal(false);
   protected readonly search = signal('');
   protected readonly status = signal<RequestStatus | ''>('');
@@ -540,11 +446,24 @@ export class AdminRequestsPageComponent {
   protected readonly totalPages = signal(1);
   protected readonly selectedIds = signal<Set<string>>(new Set());
   protected readonly busyId = signal<string | null>(null);
-  protected readonly openActionId = signal<string | null>(null);
   protected readonly filterMenuOpen = signal(false);
-  protected readonly mobileNavOpen = signal(false);
   protected readonly message = signal('');
   protected readonly messageType = signal<'success' | 'error'>('success');
+  protected readonly createDialogOpen = signal(false);
+  protected readonly createLoading = signal(false);
+  protected readonly creating = signal(false);
+  protected readonly createError = signal<string | null>(null);
+  protected readonly innovators = signal<User[]>([]);
+  protected readonly inventoryAssets = signal<Asset[]>([]);
+  protected readonly availableAssets = computed(() => this.inventoryAssets().filter(asset => asset.availableQty > 0));
+  protected readonly createItems = signal<CreateRequestItem[]>([]);
+  protected createForm: CreateRequestForm = {
+    innovatorId: '',
+    projectName: '',
+    projectAbstract: '',
+    loanDays: 7,
+    startDate: this.localDate()
+  };
   protected readonly totalRequests = computed(() => this.statusCounts()?.total ?? null);
   protected readonly pageStart = computed(() => this.filteredTotal() === 0 ? 0 : (this.page() - 1) * this.pageSize() + 1);
   protected readonly pageEnd = computed(() => Math.min(this.page() * this.pageSize(), this.filteredTotal()));
@@ -562,6 +481,7 @@ export class AdminRequestsPageComponent {
       this.loadPage();
     });
     this.loadPage();
+    this.loadRequestHistory();
   }
 
   protected onSearch(value: string): void {
@@ -593,6 +513,109 @@ export class AdminRequestsPageComponent {
 
   protected toggleFilterMenu(): void {
     this.filterMenuOpen.update(open => !open);
+  }
+
+  protected openCreate(): void {
+    this.createDialogOpen.set(true);
+    this.createError.set(null);
+    this.createForm = {
+      innovatorId: '',
+      projectName: '',
+      projectAbstract: '',
+      loanDays: 7,
+      startDate: this.localDate()
+    };
+    this.createItems.set([]);
+    this.loadCreateOptions();
+  }
+
+  protected closeCreate(): void {
+    if (this.creating()) return;
+    this.createDialogOpen.set(false);
+    this.createError.set(null);
+  }
+
+  protected loadCreateOptions(): void {
+    this.createLoading.set(true);
+    this.createError.set(null);
+    forkJoin({
+      users: this.adminService.users(),
+      assets: this.adminService.inventory()
+    }).subscribe({
+      next: ({ users, assets }) => {
+        this.innovators.set(users.filter(user => user.role === Role.INNOVATOR));
+        this.inventoryAssets.set(assets);
+        this.createLoading.set(false);
+      },
+      error: (error: unknown) => {
+        this.createError.set(this.apiErrorMessage(error, 'Unable to load innovators and available assets.'));
+        this.createLoading.set(false);
+      }
+    });
+  }
+
+  protected isCreateAssetSelected(assetId: string): boolean {
+    return this.createItems().some(item => item.assetId === assetId);
+  }
+
+  protected createQuantity(assetId: string): number {
+    return this.createItems().find(item => item.assetId === assetId)?.quantity ?? 1;
+  }
+
+  protected toggleCreateAsset(assetId: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    if (!checked) {
+      this.createItems.update(items => items.filter(item => item.assetId !== assetId));
+      return;
+    }
+    const asset = this.availableAssets().find(item => item.id === assetId);
+    if (asset && !this.isCreateAssetSelected(assetId)) {
+      this.createItems.update(items => [...items, { assetId, quantity: 1 }]);
+    }
+  }
+
+  protected setCreateQuantity(assetId: string, quantity: number): void {
+    const asset = this.availableAssets().find(item => item.id === assetId);
+    if (!asset) return;
+    const safeQuantity = Math.min(asset.availableQty, Math.max(1, Math.trunc(Number(quantity) || 1)));
+    this.createItems.update(items => items.map(item => item.assetId === assetId ? { ...item, quantity: safeQuantity } : item));
+  }
+
+  protected createRequest(): void {
+    const items = this.createItems();
+    if (!this.createForm.innovatorId || items.length === 0) {
+      this.createError.set('Select an innovator and at least one available asset.');
+      return;
+    }
+    this.creating.set(true);
+    this.createError.set(null);
+    this.service.createAdmin({
+      ...this.createForm,
+      items,
+      teamMembers: []
+    }).pipe(finalize(() => this.creating.set(false))).subscribe({
+      next: () => {
+        this.closeCreate();
+        this.message.set('Request created successfully.');
+        this.messageType.set('success');
+        this.loadPage();
+      },
+      error: (error: unknown) => this.createError.set(this.apiErrorMessage(error, 'The request could not be created.'))
+    });
+  }
+
+  private localDate(): string {
+    const date = new Date();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+
+  private loadRequestHistory(): void {
+    this.adminService.dashboard().subscribe({
+      next: metrics => this.requestActivity.set(metrics.requestActivity),
+      error: (error: unknown) => this.historyError.set(this.requestErrorMessage(error))
+    });
   }
 
   protected setPageSize(size: number): void {
@@ -628,10 +651,6 @@ export class AdminRequestsPageComponent {
     });
   }
 
-  protected toggleActions(requestId: string): void {
-    this.openActionId.update(id => id === requestId ? null : requestId);
-  }
-
   protected goToPage(page: number): void {
     if (page < 1 || page > this.totalPages() || page === this.page()) return;
     this.page.set(page);
@@ -641,10 +660,6 @@ export class AdminRequestsPageComponent {
   protected loadPage(): void {
     this.loading.set(true);
     this.pageError.set(null);
-    if (this.demoMode()) {
-      this.loadDemoPage();
-      return;
-    }
     this.service.listAdminPage({
       search: this.search().trim() || undefined,
       status: this.status() || undefined,
@@ -654,12 +669,6 @@ export class AdminRequestsPageComponent {
       limit: this.pageSize()
     }).subscribe({
       next: result => {
-        if (result.total === 0 && result.items.length === 0 && !this.search().trim() && !this.status() && !this.dateFrom() && !this.dateTo()) {
-          this.demoMode.set(true);
-          this.statusCounts.set(this.demoStatusCounts());
-          this.loadDemoPage();
-          return;
-        }
         if (result.statusCounts) {
           this.statusCounts.set(result.statusCounts);
         } else if (!this.legacyBackend() || !this.statusCounts()) {
@@ -686,39 +695,6 @@ export class AdminRequestsPageComponent {
         this.loading.set(false);
       }
     });
-  }
-
-  private demoStatusCounts(): AdminRequestCounts {
-    const counts = Object.fromEntries(this.statuses.map(status => [
-      status,
-      DEMO_REQUESTS.filter(request => request.status === status).length
-    ])) as Record<RequestStatus, number>;
-    return { ...counts, total: DEMO_REQUESTS.length };
-  }
-
-  private loadDemoPage(): void {
-    const search = this.search().trim().toLowerCase();
-    const matching = DEMO_REQUESTS.filter(request => {
-      const matchesSearch = !search || [
-        request.id,
-        `req-${request.id.slice(-4)}`,
-        request.projectName,
-        request.projectAbstract,
-        request.innovator?.fullName,
-        request.innovator?.identificationId
-      ].some(value => value?.toLowerCase().includes(search));
-      const date = request.createdAt.slice(0, 10);
-      return matchesSearch
-        && (!this.status() || request.status === this.status())
-        && (!this.dateFrom() || date >= this.dateFrom())
-        && (!this.dateTo() || date <= this.dateTo());
-    });
-    const pageCount = Math.max(1, Math.ceil(matching.length / this.pageSize()));
-    if (this.page() > pageCount) this.page.set(pageCount);
-    this.filteredTotal.set(matching.length);
-    this.totalPages.set(pageCount);
-    this.requests.set(matching.slice((this.page() - 1) * this.pageSize(), this.page() * this.pageSize()));
-    this.loading.set(false);
   }
 
   private loadStatusCounts(): void {
@@ -779,10 +755,8 @@ export class AdminRequestsPageComponent {
   }
 
   private action(request: AssetRequest, operation: (id: string) => ReturnType<RequestService['approve']>, success: string): void {
-    if (this.demoMode()) return;
     if (!confirm(`${success}?`)) return;
     this.busyId.set(request.id);
-    this.openActionId.set(null);
     this.message.set('');
     operation(request.id).pipe(finalize(() => this.busyId.set(null))).subscribe({
       next: () => {
@@ -812,6 +786,32 @@ export class AdminRequestsPageComponent {
 
   protected countFor(status: RequestStatus): number | '—' {
     return this.statusCounts()?.[status] ?? '—';
+  }
+
+  protected trendLabel(status: TrendStatus): string | null {
+    const currentMonth = this.monthKey(new Date());
+    const previousDate = new Date();
+    previousDate.setUTCDate(1);
+    previousDate.setUTCMonth(previousDate.getUTCMonth() - 1);
+    const previousMonth = this.monthKey(previousDate);
+    const activity = this.requestActivity();
+    const current = activity.find(entry => entry.month === currentMonth);
+    const previous = activity.find(entry => entry.month === previousMonth);
+    if (!current && !previous) return null;
+    const change = (current?.[status] ?? 0) - (previous?.[status] ?? 0);
+    const indicator = change > 0 ? '↑' : change < 0 ? '↓' : '→';
+    return `${indicator} ${change > 0 ? '+' : ''}${change} vs last month`;
+  }
+
+  private monthKey(date: Date): string {
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+  }
+
+  private apiErrorMessage(error: unknown, fallback: string): string {
+    if (error instanceof HttpErrorResponse && error.error && typeof error.error === 'object' && 'message' in error.error && typeof error.error.message === 'string') {
+      return error.error.message;
+    }
+    return fallback;
   }
 
   protected statusDotClass(status: RequestStatus): string {
