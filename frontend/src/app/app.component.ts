@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd } from '@angular/router';
 import { filter, forkJoin, map, startWith } from 'rxjs';
 import { AssetCategory, AssetRequest, AuditLog, RequestStatus, Role } from './core/models';
 import { AdminDashboard, AdminService, RequestService } from './core/api.service';
@@ -16,61 +15,29 @@ import { BrandLogoComponent } from './shared/brand-logo.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="topbar">
-        <a class="brand" routerLink="/" aria-label="JHUB Africa Vault home">
-          <jhub-brand-logo logo="jhub-africa" variant="vault-header"></jhub-brand-logo>
-          <span><strong>AFRICA VAULT</strong><small>ASSET TRACKING</small></span>
-        </a>
-        <button class="menu-toggle" type="button" aria-label="Toggle navigation"
-                [attr.aria-expanded]="menuOpen()" (click)="menuOpen.update(open => !open)">☰</button>
-        <nav class="desktop-nav" [class.mobile-open]="menuOpen()" aria-label="Primary navigation"
-             (click)="menuOpen.set(false)">
-          @if (auth.user()?.role === Role.ADMIN) {
-            <a routerLink="/admin/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a>
-            <a routerLink="/admin/requests" routerLinkActive="active">Requests</a>
-            <a routerLink="/admin/assets" routerLinkActive="active">Assets</a>
-            <a routerLink="/admin/inventory" routerLinkActive="active">Inventory</a>
-            <a routerLink="/admin/users" routerLinkActive="active">Users</a>
-            <a routerLink="/admin/audit-log" routerLinkActive="active">Audit Log</a>
-            <a routerLink="/admin/settings" routerLinkActive="active">Settings</a>
-          } @else if (auth.user()) {
-            <a routerLink="/app/dashboard">Dashboard</a>
-            <a routerLink="/catalogue">Catalogue</a>
-            <a routerLink="/app/requests">My Requests</a>
-            <a routerLink="/app/loans">Active Loans</a>
-          } @else {
-            <a routerLink="/catalogue">Catalogue</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="#categories">Categories</a>
-          }
-        </nav>
-        <div class="nav-actions">
-          @if (auth.user()) {
-            <a class="user-chip" [routerLink]="auth.isAdmin() ? '/admin/dashboard' : '/app/dashboard'">
-              {{ auth.user()?.fullName }}
-            </a>
-            <button class="text-button" type="button" (click)="auth.signOut()">Sign out</button>
-          } @else {
-            <a class="text-button" routerLink="/auth/login">Sign in</a>
-            <a class="primary-button compact" routerLink="/auth/register">Create account</a>
-          }
-        </div>
+      <a class="brand" routerLink="/" aria-label="JHUB Africa Vault home"><jhub-brand-logo logo="jhub-africa" variant="header"></jhub-brand-logo><span><strong>AFRICA VAULT</strong><small>ASSET TRACKING</small></span></a>
+      <button class="menu-toggle" type="button" aria-label="Toggle navigation" [attr.aria-expanded]="menuOpen()" (click)="menuOpen.update(open => !open)">☰</button>
+      <nav class="desktop-nav" [class.mobile-open]="menuOpen()" aria-label="Primary navigation" (click)="menuOpen.set(false)">@if (auth.user()?.role === Role.ADMIN) {<a routerLink="/admin/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a><a routerLink="/admin/requests" routerLinkActive="active">Requests</a><a routerLink="/admin/assets" routerLinkActive="active">Assets</a><a routerLink="/admin/inventory" routerLinkActive="active">Inventory</a><a routerLink="/admin/users" routerLinkActive="active">Users</a><a routerLink="/admin/audit-log" routerLinkActive="active">Audit Log</a><a routerLink="/admin/settings" routerLinkActive="active">Settings</a>} @else if (auth.user()) {<a routerLink="/app/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a><a routerLink="/catalogue" routerLinkActive="active">Catalogue</a><a routerLink="/app/requests" routerLinkActive="active">My Requests</a><a routerLink="/app/loans" routerLinkActive="active">Active Loans</a>} @else {<a routerLink="/catalogue" routerLinkActive="active">Catalogue</a><a href="#how-it-works">How it works</a><a href="#categories">Categories</a>}</nav>
+      <div class="nav-actions">
+        @if (auth.user()) { <a class="user-chip" [routerLink]="auth.isAdmin() ? '/admin/dashboard' : '/app/dashboard'">{{ auth.user()?.fullName }}</a><button class="text-button" type="button" (click)="auth.signOut()">Sign out</button> }
+        @else { <a class="text-button" routerLink="/auth/login">Sign in</a><a class="primary-button compact" routerLink="/auth/register">Create account</a> }
+      </div>
     </header>
 
-    <!-- upstream main sections (home, catalogue, auth, admin, dashboard shell) -->
-    <!-- … unchanged content … -->
+    @if (isHome()) {
+      <main>
+        <section class="hero page-width"><div class="hero-copy"><p class="eyebrow">JHUB AFRICA / ASSET VAULT</p><h1>Build what matters.<br><em>Borrow the tools.</em></h1><p class="hero-lede">A clear, accountable way for JHUB innovators to discover, request, and track the physical assets that turn promising ideas into working prototypes.</p><div class="hero-actions"><a class="primary-button" routerLink="/catalogue">Browse assets <span>→</span></a><a class="secondary-button" routerLink="/auth/register">Join the innovator network</a></div><div class="hero-note"><span class="live-dot"></span><span>{{ assetStore.loading() ? 'Loading live inventory…' : assetStore.error() ? 'Live inventory unavailable' : 'Live inventory · IoT, computing, AV and more' }}</span></div></div><div class="hero-art" aria-label="Abstract illustration of connected assets"><div class="art-grid"></div>@if (featuredAsset(); as asset) {<div class="art-card art-card-main"><span class="art-icon">⌁</span><strong>{{ asset.name }}</strong><small>{{ asset.assetTag }}</small><div class="availability"><span></span> {{ asset.availableQty }} available</div></div>}<div class="art-card art-card-small"><span class="mini-number">{{ categoryTotal() }}</span><small>asset categories</small></div><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></div></section>
+        <section class="stats-strip"><div class="page-width stats"><div><strong>01</strong><span>Discover what is available</span></div><div><strong>02</strong><span>Request for your project</span></div><div><strong>03</strong><span>Track it from pickup to return</span></div></div></section>
+        <section class="section page-width" id="categories"><div class="section-heading"><div><p class="eyebrow">THE VAULT, AT A GLANCE</p><h2>Everything to move<br>from idea to <em>impact.</em></h2></div><a class="arrow-link" routerLink="/catalogue">View all assets <span>↗</span></a></div><div class="category-grid">@for (category of categories; track category.label) {<a class="category-card" routerLink="/catalogue"><span class="category-icon">{{ category.icon }}</span><div><strong>{{ category.label }}</strong><small>{{ categoryCount(category.value) }} assets available</small></div><span class="card-arrow">↗</span></a>}</div></section>
+        <section class="process-band" id="how-it-works"><div class="page-width process-content"><div><p class="eyebrow light">DESIGNED FOR ACCOUNTABILITY</p><h2>Simple to borrow.<br><em>Easy to trust.</em></h2></div><div class="process-list"><div><span>01</span><p><strong>Find your components</strong><small>Browse live inventory by category, availability, or asset tag.</small></p></div><div><span>02</span><p><strong>Make a project request</strong><small>Tell us what you are building, who is involved, and how long you need it.</small></p></div><div><span>03</span><p><strong>Stay in control</strong><small>Every handover, due date, and return lives in one transparent record.</small></p></div></div></div></section>
+        <section class="cta-band page-width"><div><p class="eyebrow">YOUR NEXT PROTOTYPE STARTS HERE</p><h2>What will you make<br>with the <em>Vault?</em></h2></div><a class="primary-button light-button" routerLink="/catalogue">Explore the catalogue <span>→</span></a></section>
+      </main>
+    } @else if (isCatalogue()) { <main class="page-width catalogue-page"><div class="catalogue-intro"><div><p class="eyebrow">PUBLIC CATALOGUE</p><h1>Tools for the <em>work ahead.</em></h1><p>Explore the physical assets available to JHUB Africa innovators.</p></div><div class="search-box"><span>⌕</span><input aria-label="Search assets" placeholder="Search by name, tag or specification"></div></div><div class="filter-row"><button class="filter-active">All assets</button><button>IoT & prototyping</button><button>Computing</button><button>Networking</button><button>AV & presentation</button></div><div class="asset-grid">@for (asset of assets(); track asset.tag) {<article class="asset-card"><div class="asset-visual" [style.--accent]="asset.accent"><span>{{ asset.icon }}</span><small>{{ asset.category.replace('_', ' ') }}</small></div><div class="asset-info"><div><p class="asset-tag">{{ asset.tag }}</p><h3>{{ asset.name }}</h3></div><div class="asset-meta"><span class="stock"><i></i>{{ asset.available }} available</span><span>Tracked asset</span></div><a class="asset-link" [routerLink]="['/assets', asset.tag]">View details <span>↗</span></a></div></article>}</div></main> }
+    @else if (isAuth()) { <main class="auth-page"><div class="auth-panel"><p class="eyebrow">JHUB AFRICA VAULT</p><h1>{{ isRegister() ? 'Make room for your next idea.' : 'Welcome back, innovator.' }}</h1><p>{{ isRegister() ? 'Create your innovator account to request and track JHUB assets.' : 'Sign in to manage your requests, loans, and profile.' }}</p><form (submit)="$event.preventDefault(); auth.signIn(isAdminLogin() ? Role.ADMIN : Role.INNOVATOR)"><label>Email address<input type="email" required placeholder="you@example.com"></label><label>Password<input type="password" required placeholder="Enter your password"></label>@if (isRegister()) {<label>Full name<input type="text" required placeholder="Your full name"></label>}<button class="primary-button submit-button" type="submit">{{ isRegister() ? 'Create innovator account' : 'Sign in' }} <span>→</span></button></form><p class="form-foot">Demo entry is wired to the typed auth store. Backend authentication connects at the service boundary.</p></div><div class="auth-aside"><span class="aside-mark">J</span><h2>Good tools make<br><em>bold work</em> possible.</h2></div></main> }
+    @else if (isAdmin()) { <main class="dashboard page-width"><div class="dashboard-head"><div><p class="eyebrow">ADMINISTRATION / OVERVIEW</p><h1>Good morning, <em>administrator.</em></h1></div><a class="primary-button" routerLink="/admin/requests">Review requests <span>→</span></a></div>@if (dashboardLoading()) { <div class="dashboard-state">Loading dashboard metrics…</div> } @else if (dashboardError()) { <div class="dashboard-state error" role="alert">{{ dashboardError() }}</div> } @else if (adminMetrics(); as metrics) { <div class="metric-grid"><div class="metric-card accent-blue"><small>PENDING REQUESTS</small><strong>{{ metrics.pendingRequests }}</strong><span>Awaiting review</span></div><div class="metric-card accent-green"><small>AVAILABLE INVENTORY</small><strong>{{ metrics.availableInventory }}</strong><span>Available units</span></div><div class="metric-card accent-red"><small>OVERDUE LOANS</small><strong>{{ metrics.overdueRequests }}</strong><span>Needs attention</span></div><div class="metric-card"><small>USERS</small><strong>{{ metrics.users }}</strong><span>Registered accounts</span></div><div class="metric-card"><small>TOTAL ASSETS</small><strong>{{ metrics.totalAssets }}</strong><span>Tracked records</span></div><div class="metric-card"><small>ASSETS ON LOAN</small><strong>{{ metrics.checkedOutRequests }}</strong><span>Checked out requests</span></div></div><div class="dashboard-lower"><section class="dashboard-section"><div class="section-heading compact-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Audit log</h2></div><a class="arrow-link" routerLink="/admin/audit-log">See all ↗</a></div>@if (auditLogs().length) { @for (log of auditLogs().slice(0, 3); track log.id) {<div class="request-row"><span class="request-avatar">{{ log.actor?.fullName?.slice(0, 2)?.toUpperCase() || 'SY' }}</span><div><strong>{{ log.action }}</strong><small>{{ log.actor?.fullName || 'System' }} · {{ log.entityType }}</small></div><span class="status approved">LOGGED</span></div>} } @else { <div class="dashboard-state">No audit activity recorded yet.</div> }</section><section class="quick-panel"><p class="eyebrow">QUICK ACCESS</p><a routerLink="/admin/assets"><span>▦</span>Manage assets <b>↗</b></a><a routerLink="/admin/inventory"><span>◫</span>View inventory <b>↗</b></a><a routerLink="/admin/users"><span>◎</span>Innovator directory <b>↗</b></a></section></div> }</main> }
+    @else if (isDashboardShell()) { <main class="dashboard page-width"><div class="dashboard-head"><div><p class="eyebrow">INNOVATOR WORKSPACE</p><h1>Your ideas, <em>in motion.</em></h1><p>Welcome back. Here is the pulse of your JHUB activity.</p></div><a class="primary-button" routerLink="/catalogue">Find assets <span>→</span></a></div>@if (dashboardLoading()) { <div class="dashboard-state">Loading dashboard metrics…</div> } @else if (dashboardError()) { <div class="dashboard-state error" role="alert">{{ dashboardError() }}</div> } @else { <div class="metric-grid"><div class="metric-card accent-blue"><small>ACTIVE REQUESTS</small><strong>{{ activeRequestCount() }}</strong><span>Pending or approved</span></div><div class="metric-card accent-green"><small>ACTIVE LOANS</small><strong>{{ activeLoanCount() }}</strong><span>Checked out or overdue</span></div><div class="metric-card"><small>RETURNED ASSETS</small><strong>{{ returnedRequestCount() }}</strong><span>Returned requests</span></div></div><section class="welcome-panel"><div><p class="eyebrow">KEEP BUILDING</p><h2>Have a new project<br>in mind?</h2><p>Find the components your team needs and start a request in a few minutes.</p><a class="arrow-link" routerLink="/catalogue">Browse the Vault ↗</a></div><span class="welcome-symbol">+</span></section> }</main> }
+    @else { <main class="routed-page"></main> }
     <router-outlet></router-outlet>
-    <footer class="footer">
-      <div class="page-width">
-        <a class="brand footer-brand" routerLink="/">
-          <jhub-brand-logo logo="jhub" variant="footer"></jhub-brand-logo>
-        </a>
-        <p>
-          A shared infrastructure for ambitious ideas.<br>
-          Jomo Kenyatta University of Agriculture and Technology.
-        </p>
-        <span>© 2026 JHUB Africa</span>
-      </div>
-    </footer>
   `,
   styles: [`
     :host { display:block; }
@@ -123,8 +90,10 @@ export class AppComponent {
   protected readonly auth = inject(AuthStore);
   protected readonly router = inject(Router);
   protected readonly menuOpen = signal(false);
+
   private readonly adminService = inject(AdminService);
   private readonly requestService = inject(RequestService);
+
   protected readonly assetStore = inject(AssetStore);
   protected readonly dashboardLoading = signal(false);
   protected readonly dashboardError = signal<string | null>(null);
@@ -132,18 +101,8 @@ export class AppComponent {
   protected readonly auditLogs = signal<AuditLog[]>([]);
   protected readonly innovatorRequests = signal<AssetRequest[]>([]);
 
-  constructor() {
-    this.auth.hydrate().subscribe();
-    this.assetStore.load();
-    effect(() => {
-      const user = this.auth.user();
-      const url = this.navigationUrl();
-      if (!user || (url !== '/admin/dashboard' && url !== '/app/dashboard')) return;
-      this.loadDashboard(user.role);
-    });
-  }
-
   protected readonly Role = Role;
+
   private readonly navigationUrl = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -153,13 +112,55 @@ export class AppComponent {
     { initialValue: this.router.url }
   );
 
-  protected readonly isHome = computed(() => this.navigationUrl() === '/' || this.navigationUrl() === '/landing');
-  protected readonly isCatalogue = computed(() => false);
-  protected readonly isAuth = computed(() => false);
-  protected readonly isRegister = computed(() => this.navigationUrl().includes('register'));
-  protected readonly isAdminLogin = computed(() => this.navigationUrl() === '/admin/login');
-  protected readonly isAdmin = computed(() => false);
-  protected readonly isDashboardShell = computed(() => false);
+  constructor() {
+    this.auth.hydrate().subscribe();
+    this.assetStore.load();
+
+    effect(() => {
+      const user = this.auth.user();
+      const url = this.navigationUrl();
+
+      if (!user) {
+        this.dashboardLoading.set(false);
+        return;
+      }
+
+      if (url === '/admin/dashboard' || url === '/app/dashboard') {
+        this.loadDashboard(user.role);
+      }
+    });
+  }
+
+  protected readonly isHome = computed(() => {
+    const url = this.navigationUrl();
+    return url === '/' || url === '/landing';
+  });
+
+  protected readonly isCatalogue = computed(() =>
+    this.navigationUrl().split('?')[0].replace(/\/$/, '') === '/catalogue'
+  );
+
+  protected readonly isAuth = computed(() => {
+    const url = this.navigationUrl().split('?')[0];
+    return url.startsWith('/auth/') || url === '/admin/login';
+  });
+
+  protected readonly isRegister = computed(() =>
+    this.navigationUrl().split('?')[0] === '/auth/register'
+  );
+
+  protected readonly isAdminLogin = computed(() =>
+    this.navigationUrl().split('?')[0] === '/admin/login'
+  );
+
+  protected readonly isAdmin = computed(() => {
+    const url = this.navigationUrl().split('?')[0];
+    return url.startsWith('/admin/') && url !== '/admin/login';
+  });
+
+  protected readonly isDashboardShell = computed(() =>
+    this.navigationUrl().split('?')[0] === '/app/dashboard'
+  );
 
   protected readonly categories = [
     { label: 'IoT & Prototyping', value: AssetCategory.IOT_PROTOTYPING, icon: '⌁' },
@@ -167,53 +168,3 @@ export class AppComponent {
     { label: 'Networking Infrastructure', value: AssetCategory.NETWORKING_INFRASTRUCTURE, icon: '⌘' },
     { label: 'AV & Presentation', value: AssetCategory.AV_PRESENTATION, icon: '◉' },
     { label: 'Office Supplies', value: AssetCategory.OFFICE_SUPPLIES, icon: '▤' },
-    { label: 'Furniture', value: AssetCategory.FURNITURE, icon: '⌂' }
-  ];
-
-  protected readonly featuredAsset = computed(() => this.assetStore.assets()[0]);
-  protected readonly categoryTotal = computed(() => new Set(this.assetStore.assets().map(asset => asset.category)).size);
-  protected readonly assets: Array<{ name: string; tag: string; category: AssetCategory; available: number; total: number; accent: string; icon: string }> = [];
-
-  protected readonly activeRequestCount = computed(() =>
-    this.innovatorRequests().filter(request => request.status === RequestStatus.PENDING || request.status === RequestStatus.APPROVED).length
-  );
-  protected readonly activeLoanCount = computed(() =>
-    this.innovatorRequests().filter(request => request.status === RequestStatus.CHECKED_OUT || request.status === RequestStatus.OVERDUE).length
-  );
-  protected readonly returnedRequestCount = computed(() =>
-    this.innovatorRequests().filter(request => request.status === RequestStatus.RETURNED).length
-  );
-
-  protected categoryCount(category: AssetCategory): number {
-    return this.assetStore.assets().filter(asset => asset.category === category).length;
-  }
-
-  private loadDashboard(role: Role): void {
-    this.dashboardLoading.set(true);
-    this.dashboardError.set(null);
-    if (role === Role.ADMIN) {
-      forkJoin({ metrics: this.adminService.dashboard(), audit: this.adminService.auditLog() }).subscribe({
-        next: result => {
-          this.adminMetrics.set(result.metrics);
-          this.auditLogs.set(result.audit);
-          this.dashboardLoading.set(false);
-        },
-        error: () => {
-          this.dashboardLoading.set(false);
-          this.dashboardError.set('Unable to load the administration dashboard.');
-        }
-      });
-      return;
-    }
-    this.requestService.listMine().subscribe({
-      next: requests => {
-        this.innovatorRequests.set(requests);
-        this.dashboardLoading.set(false);
-      },
-      error: () => {
-        this.dashboardLoading.set(false);
-        this.dashboardError.set('Unable to load your workspace dashboard.');
-      }
-    });
-  }
-}
