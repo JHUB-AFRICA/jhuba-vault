@@ -5,7 +5,11 @@ import { Prisma, RequestStatus, Role } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { HttpError } from '../middleware/errors';
 import { requireAuth, requireRole } from '../middleware/auth';
+<<<<<<< HEAD
 import { adminRequestQuery, adminRequestSchema, adminSearchQuery, assetSchema, kenyanPhoneNumberSchema, loginSchema, registerSchema, rejectSchema, requestSchema, statusQuery } from '../validators/schemas';
+=======
+import { adminRequestQuery, adminSearchQuery, assetSchema, kenyanPhoneNumberSchema, loginSchema, registerSchema, rejectSchema, requestSchema, statusQuery } from '../validators/schemas';
+>>>>>>> 96e22bab77eedbbcf837e3844a54b220ca1a6f7c
 import { signToken } from '../utils/jwt';
 import { audit } from '../services/audit.service';
 import { sendApprovalEmail } from '../services/mail.service';
@@ -302,6 +306,7 @@ router.get('/admin/users', ...admin, async (_req, res) => { const users = await 
 router.patch('/admin/users/:id', ...admin, async (req, res) => { const data = { fullName: typeof req.body.fullName === 'string' ? req.body.fullName.trim() : undefined, phoneNumber: typeof req.body.phoneNumber === 'string' ? kenyanPhoneNumberSchema.parse(req.body.phoneNumber) : undefined, department: typeof req.body.department === 'string' ? req.body.department.trim() : undefined, role: Object.values(Role).includes(req.body.role) ? req.body.role as Role : undefined }; const user = await prisma.user.update({ where: { id: req.params.id }, data, select: { id: true, fullName: true, email: true, phoneNumber: true, identificationId: true, department: true, role: true, createdAt: true, updatedAt: true } }); await audit(prisma, req.auth!.userId, 'USER_UPDATED', 'User', user.id, { fields: Object.keys(data).filter(key => data[key as keyof typeof data] !== undefined) }); res.json({ success: true, data: user }); });
 router.get('/admin/audit', ...admin, async (_req, res) => { const logs = await prisma.auditLog.findMany({ include: { actor: { select: { id: true, fullName: true, email: true } } }, orderBy: { createdAt: 'desc' }, take: 100 }); res.json({ success: true, data: logs }); });
 
+<<<<<<< HEAD
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -320,10 +325,17 @@ const validateUploadedImage = (req: Request, _res: Response, next: NextFunction)
   }
   if (!isSupportedImageFile(req.file)) {
     next(new HttpError(415, 'INVALID_IMAGE_TYPE', 'The selected file is not a valid JPEG, PNG, or WebP image.'));
+=======
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (_req, file, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) });
+const validateAssetImage = (req: Request, _res: Response, next: NextFunction): void => {
+  if (!req.file || !isSupportedImageFile(req.file)) {
+    next(new HttpError(400, 'INVALID_IMAGE_TYPE', 'Upload a valid JPEG, PNG, or WebP image smaller than 5MB'));
+>>>>>>> 96e22bab77eedbbcf837e3844a54b220ca1a6f7c
     return;
   }
   next();
 };
+<<<<<<< HEAD
 router.post('/uploads/profile', requireAuth, upload.single('file'), validateUploadedImage, async (req, res) => {
   const current = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
   if (!current) throw new HttpError(404, 'USER_NOT_FOUND', 'User not found.');
@@ -358,6 +370,10 @@ router.post('/uploads/assets/:id/image', ...admin, upload.single('file'), valida
   if (current.imagePublicId) void deleteImage(current.imagePublicId).catch(() => console.error('Old asset image cleanup failed'));
   res.json({ success: true, data: { ...publicAsset(asset), secureUrl: uploaded.secureUrl, publicId: uploaded.publicId } });
 });
+=======
+router.post('/uploads/profile', requireAuth, upload.single('file'), async (req, res) => { if (!req.file) throw new HttpError(400, 'IMAGE_REQUIRED', 'An image file is required'); const uploaded = await uploadImage(req.file.buffer, 'jhub-africa-vault/profiles'); const user = await prisma.user.update({ where: { id: req.auth!.userId }, data: { avatarUrl: uploaded.secureUrl } }); res.json({ success: true, data: { url: uploaded.secureUrl, user: publicUser(user) } }); });
+router.post('/uploads/assets/:id/image', ...admin, upload.single('file'), validateAssetImage, async (req, res) => { const current = await prisma.asset.findUnique({ where: { id: req.params.id } }); if (!current) throw new HttpError(404, 'ASSET_NOT_FOUND', 'Asset not found'); const uploaded = await uploadImage(req.file!.buffer, `jhub-africa-vault/assets/${current.id}`); const asset = await prisma.asset.update({ where: { id: current.id }, data: { imageUrl: uploaded.secureUrl, imagePublicId: uploaded.publicId } }); await audit(prisma, req.auth!.userId, current.imagePublicId ? 'ASSET_IMAGE_REPLACED' : 'ASSET_IMAGE_UPLOADED', 'Asset', asset.id, { publicId: uploaded.publicId }); if (current.imagePublicId) void deleteImage(current.imagePublicId).catch(error => console.error('Old asset image cleanup failed', error)); res.json({ success: true, data: publicAsset(asset) }); });
+>>>>>>> 96e22bab77eedbbcf837e3844a54b220ca1a6f7c
 router.delete('/uploads/assets/:id/image', ...admin, async (req, res) => { const asset = await prisma.asset.findUnique({ where: { id: req.params.id } }); if (!asset) throw new HttpError(404, 'ASSET_NOT_FOUND', 'Asset not found'); if (asset.imagePublicId) await deleteImage(asset.imagePublicId); const updated = await prisma.asset.update({ where: { id: asset.id }, data: { imageUrl: null, imagePublicId: null } }); await audit(prisma, req.auth!.userId, 'ASSET_IMAGE_REMOVED', 'Asset', asset.id); res.json({ success: true, data: publicAsset(updated) }); });
 router.patch('/admin/requests/:id/items/:itemId', ...admin, async (req, res) => { const quantity = Number(req.body.quantity); if (!Number.isInteger(quantity) || quantity < 1) throw new HttpError(422, 'INVALID_QUANTITY', 'Quantity must be a positive integer'); const updated = await prisma.$transaction(async tx => { const request = await tx.assetRequest.findUnique({ where: { id: req.params.id } }); if (!request || request.status !== RequestStatus.PENDING) throw new HttpError(409, 'INVALID_STATUS', 'Only pending requests can be modified'); const item = await tx.requestItem.findFirst({ where: { id: req.params.itemId, requestId: request.id } }); if (!item) throw new HttpError(404, 'REQUEST_ITEM_NOT_FOUND', 'Request item not found'); const asset = await tx.asset.findUnique({ where: { id: item.assetId } }); if (!asset || quantity > asset.availableQty) throw new HttpError(409, 'INSUFFICIENT_INVENTORY', 'Requested quantity is unavailable'); const result = await tx.requestItem.update({ where: { id: item.id }, data: { quantity }, include: { asset: true } }); await audit(tx, req.auth!.userId, 'REQUEST_QUANTITY_MODIFIED', 'RequestItem', item.id, { quantity }); return result; }); res.json({ success: true, data: updated }); });
 

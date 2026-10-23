@@ -106,6 +106,7 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
 
           @if (mode() === 'register') {
             <label>
+<<<<<<< HEAD
               Phone number <span class="required-mark">*</span>
               <span class="phone-input">
                 <span class="country-code">+254</span>
@@ -113,6 +114,37 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
               </span>
               <span class="phone-help">Enter the 9 digits after +254, starting with 7 or 1.</span>
               @if (invalid('phoneNumber')) { <small>Enter a valid Kenyan phone number (e.g. 712345678). Do not include the leading 0.</small> }
+=======
+              Phone number
+
+              <div class="phone-input">
+
+                <span class="country-code">
+                  +254
+                </span>
+
+                <input
+                  type="tel"
+                  formControlName="phoneNumber"
+                  placeholder="712345678"
+                  maxlength="9"
+                  inputmode="numeric"
+                  autocomplete="tel-national"
+                />
+
+              </div>
+
+              <span class="phone-help">
+                Enter the 9 digits after +254, starting with 7 or 1.
+              </span>
+
+              @if (invalid('phoneNumber')) {
+                <small>
+                  Enter a valid Kenyan phone number (e.g. 712345678). Do not include the leading 0.
+                </small>
+              }
+
+>>>>>>> 96e22bab77eedbbcf837e3844a54b220ca1a6f7c
             </label>
 
             <label>

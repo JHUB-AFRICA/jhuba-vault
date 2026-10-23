@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  adminRequestSchema,
   adminRequestQuery,
   adminSearchQuery,
   assetSchema,
@@ -36,23 +35,6 @@ describe('request validation', () => {
       teamMembers: []
     });
     expect(result.success).toBe(true);
-  });
-
-  it('requires an innovator id for admin-created requests', () => {
-    const request = {
-      projectName: 'Test',
-      projectAbstract: 'A valid project abstract',
-      loanDays: 7,
-      startDate: '2026-09-28',
-      items: [{ assetId: '00000000-0000-4000-8000-000000000001', quantity: 1 }],
-      teamMembers: []
-    };
-
-    expect(adminRequestSchema.safeParse(request).success).toBe(false);
-    expect(adminRequestSchema.safeParse({
-      ...request,
-      innovatorId: '00000000-0000-4000-8000-000000000002'
-    }).success).toBe(true);
   });
 
   it('rejects invalid asset price and inventory values', () => {
@@ -91,9 +73,44 @@ describe('request validation', () => {
 
 describe('admin search validation', () => {
   it('requires a trimmed query of at least two characters', () => {
-    expect(adminSearchQuery.safeParse({ q: 'a' }).success).toBe(false);
-    expect(adminSearchQuery.safeParse({ q: '  ' }).success).toBe(false);
-    expect(adminSearchQuery.safeParse({ q: ' asset ' }).success).toBe(true);
+    expect(adminSearchQuery.safeParse({ q: ' a ' }).success).toBe(false);
+
+    expect(
+      adminSearchQuery.safeParse({ q: '  asset  ' })
+    ).toMatchObject({
+      success: true,
+      data: { q: 'asset' }
+    });
+  });
+
+  describe('request status and pagination validation', () => {
+    it('uses the first page and default page size when omitted', () => {
+      expect(statusQuery.parse({})).toEqual({
+        page: 1,
+        limit: 10
+      });
+    });
+
+    it('accepts valid request statuses and bounded pagination', () => {
+      expect(statusQuery.safeParse({
+        status: 'PENDING',
+        page: '2',
+        limit: '50'
+      })).toMatchObject({
+        success: true,
+        data: {
+          status: 'PENDING',
+          page: 2,
+          limit: 50
+        }
+      });
+    });
+
+    it('rejects invalid statuses and pagination outside the supported range', () => {
+      expect(statusQuery.safeParse({ status: 'ACTIVE' }).success).toBe(false);
+      expect(statusQuery.safeParse({ page: '0' }).success).toBe(false);
+      expect(statusQuery.safeParse({ limit: '101' }).success).toBe(false);
+    });
   });
 
   describe('request status and pagination validation', () => {

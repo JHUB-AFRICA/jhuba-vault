@@ -29,16 +29,21 @@ export const assetSchema = z.object({
   totalQuantity: z.number().int().min(1),
   availableQty: z.number().int().min(0),
   imageUrl: z.string().url().nullable().optional(),
+<<<<<<< HEAD
   specifications: z.record(z.string(), z.string()).default({})
 }).refine(value => value.availableQty <= value.totalQuantity, {
   message: 'availableQty cannot exceed totalQuantity',
   path: ['availableQty']
+=======
+  specifications: z.record(z.string(), z.string())
+>>>>>>> 96e22bab77eedbbcf837e3844a54b220ca1a6f7c
 });
 
 export const requestSchema = z.object({
   projectName: z.string().trim().min(1).max(120),
   projectAbstract: z.string().trim().min(20).max(5000),
   loanDays: z.number().int().min(1).max(365),
+<<<<<<< HEAD
   startDate: z.coerce.date(),
   items: z.array(
     z.object({
@@ -59,6 +64,20 @@ export const requestSchema = z.object({
 
 export const adminRequestSchema = requestSchema.extend({
   innovatorId: z.string().uuid()
+=======
+  startDate: z.iso.date(),
+  items: z.array(z.object({
+    assetId: z.uuid(),
+    quantity: z.number().int().min(1)
+  })).min(1).max(100),
+  teamMembers: z.array(z.object({
+    fullName: z.string().trim().min(1).max(120),
+    email: z.string().trim().email().max(254).transform(value => value.toLowerCase()),
+    phoneNumber: z.string().trim().min(3).max(40),
+    studentOrIdNo: z.string().trim().min(1).max(64),
+    roleInProject: z.string().trim().min(1).max(120)
+  })).max(50)
+>>>>>>> 96e22bab77eedbbcf837e3844a54b220ca1a6f7c
 });
 
 export const rejectSchema = z.object({
@@ -68,13 +87,17 @@ export const rejectSchema = z.object({
 export const statusQuery = z.object({
   status: z.nativeEnum(RequestStatus).optional(),
   page: z.coerce.number().int().min(1).default(1),
+<<<<<<< HEAD
   limit: z.coerce.number().int().min(1).max(100).default(20)
+=======
+  limit: z.coerce.number().int().min(1).max(100).default(10)
+>>>>>>> 96e22bab77eedbbcf837e3844a54b220ca1a6f7c
 });
 
 export const adminRequestQuery = statusQuery.extend({
   search: z.string().trim().max(100).optional(),
-  dateFrom: z.coerce.date().optional(),
-  dateTo: z.coerce.date().optional()
+  dateFrom: z.iso.date().optional(),
+  dateTo: z.iso.date().optional()
 }).refine(
   query =>
     !query.dateFrom ||
