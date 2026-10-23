@@ -78,8 +78,10 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
         </div>
 
         <div class="login-heading">
-          <h1>{{ mode() === 'register' ? 'Create Account' : mode() === 'admin' ? 'Administrator Sign In' : 'Welcome Back' }}</h1>
-          <p>{{ mode() === 'register' ? 'Create your innovator account to request and track JHUB assets.' : 'Sign in to access JHUB Africa Vault.' }}</p>
+          <h1>{{ mode() === 'register' ? 'Create Account' : mode() === 'admin' ? 'Administrator Sign In' : 'Sign In' }}</h1>
+          @if (mode() === 'register') {
+            <p>Create your innovator account to request and track JHUB assets.</p>
+          }
         </div>
 
         @if (auth.error()) {
@@ -96,17 +98,16 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
           }
 
           <label>
-            Official email <span class="required-mark">*</span>
+            Email <span class="required-mark">*</span>
             <span class="input-wrap">
               <i class="pi pi-envelope" aria-hidden="true"></i>
-              <input type="email" formControlName="email" placeholder="Enter your official email address" autocomplete="email" />
+              <input type="email" formControlName="email" placeholder="Email address" autocomplete="email" />
             </span>
             @if (invalid('email')) { <small>Enter a valid email address.</small> }
           </label>
 
           @if (mode() === 'register') {
             <label>
-<<<<<<< HEAD
               Phone number <span class="required-mark">*</span>
               <span class="phone-input">
                 <span class="country-code">+254</span>
@@ -114,37 +115,6 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
               </span>
               <span class="phone-help">Enter the 9 digits after +254, starting with 7 or 1.</span>
               @if (invalid('phoneNumber')) { <small>Enter a valid Kenyan phone number (e.g. 712345678). Do not include the leading 0.</small> }
-=======
-              Phone number
-
-              <div class="phone-input">
-
-                <span class="country-code">
-                  +254
-                </span>
-
-                <input
-                  type="tel"
-                  formControlName="phoneNumber"
-                  placeholder="712345678"
-                  maxlength="9"
-                  inputmode="numeric"
-                  autocomplete="tel-national"
-                />
-
-              </div>
-
-              <span class="phone-help">
-                Enter the 9 digits after +254, starting with 7 or 1.
-              </span>
-
-              @if (invalid('phoneNumber')) {
-                <small>
-                  Enter a valid Kenyan phone number (e.g. 712345678). Do not include the leading 0.
-                </small>
-              }
-
->>>>>>> 96e22bab77eedbbcf837e3844a54b220ca1a6f7c
             </label>
 
             <label>
@@ -179,9 +149,6 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
           <a [routerLink]="mode() === 'register' ? '/auth/login' : '/auth/register'">{{ mode() === 'register' ? 'Sign in' : 'Register' }}</a>
         </p>
 
-        <div class="card-footer">
-          <span><i class="pi pi-lock" aria-hidden="true"></i> Secure access to your resources</span>
-        </div>
       </section>
     </main>
   `,

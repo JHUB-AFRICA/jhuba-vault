@@ -387,6 +387,7 @@ export class AdminRequestsPageComponent {
   protected readonly totalPages = signal(1);
   protected readonly selectedIds = signal<Set<string>>(new Set());
   protected readonly busyId = signal<string | null>(null);
+  protected readonly openActionId = signal<string | null>(null);
   protected readonly filterMenuOpen = signal(false);
   protected readonly message = signal('');
   protected readonly messageType = signal<'success' | 'error'>('success');
