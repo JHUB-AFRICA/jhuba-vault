@@ -2,7 +2,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject
+  inject,
+  signal
 } from '@angular/core';
 
 import {
@@ -31,294 +32,476 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 
   template: `
-    <main class="auth-page">
+    <main class="auth-page" [class.login-only]="mode() !== 'register'">
+      <section class="intro-card" aria-label="About the JHUB Africa Vault">
+        <div class="brand-row">
+          <jhub-brand-logo logo="jhub" variant="auth" />
+        </div>
 
-      <section class="auth-panel">
+        <div class="intro-copy">
+          <h1>JHUB Africa Vault</h1>
+          <h2>Hardware Vault</h2>
+          <p>Access technology, IoT components and equipment to build your innovations.</p>
+        </div>
 
-        <p class="eyebrow">JHUB AFRICA VAULT</p>
+        <ul class="benefits">
+          <li>
+            <span class="benefit-icon pi pi-briefcase" aria-hidden="true"></span>
+            <span><strong>Innovators &amp; Researchers</strong><small>Access the tools you need</small></span>
+          </li>
+          <li>
+            <span class="benefit-icon pi pi-shield" aria-hidden="true"></span>
+            <span><strong>Secure &amp; Accountable</strong><small>Track, manage and return resources</small></span>
+          </li>
+          <li>
+            <span class="benefit-icon pi pi-lightbulb" aria-hidden="true"></span>
+            <span><strong>Building Innovation</strong><small>Together for a better tomorrow</small></span>
+          </li>
+        </ul>
 
-        <h1>
-          {{
-            mode() === 'register'
-              ? 'Make room for your next idea.'
-              : mode() === 'admin'
-                ? 'The Vault, under control.'
-                : 'Welcome back, innovator.'
-          }}
-        </h1>
+        <div class="workshop-art" role="img" aria-label="Illustration of electronics and tools in an innovation workshop">
+          <div class="workshop-shelf"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="workbench">
+            <span class="meter"><i></i><b></b></span>
+            <span class="scope"><i></i><b></b><b></b><b></b></span>
+            <span class="board"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="laptop"><i></i></span>
+          </div>
+          <span class="art-caption">IDEAS IN ACTION</span>
+          <span class="art-shape"></span>
+        </div>
+      </section>
 
-        <p>
-          {{
-            mode() === 'register'
-              ? 'Create your innovator account to request and track JHUB assets.'
-              : 'Sign in to manage requests, loans, and your profile.'
-          }}
-        </p>
+      <section class="login-card" aria-label="Sign in">
+        <div class="brand-row">
+          <jhub-brand-logo logo="jhub" variant="auth" />
+        </div>
+
+        <div class="login-heading">
+          <h1>{{ mode() === 'register' ? 'Create Account' : mode() === 'admin' ? 'Administrator Sign In' : 'Welcome Back' }}</h1>
+          <p>{{ mode() === 'register' ? 'Create your innovator account to request and track JHUB assets.' : 'Sign in to access JHUB Africa Vault.' }}</p>
+        </div>
 
         @if (auth.error()) {
-          <div class="form-alert error" role="alert">
-            {{ auth.error() }}
-          </div>
+          <div class="form-alert error" role="alert">{{ auth.error() }}</div>
         }
 
-        <form
-          [formGroup]="form"
-          (ngSubmit)="submit()"
-          novalidate
-        >
-
+        <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
           @if (mode() === 'register') {
-
             <label>
-              Full name
-
-              <input
-                type="text"
-                formControlName="fullName"
-                placeholder="Your full name"
-                autocomplete="name"
-              />
-
-              @if (invalid('fullName')) {
-                <small>
-                  Full name is required.
-                </small>
-              }
+              Full name <span class="required-mark">*</span>
+              <input type="text" formControlName="fullName" placeholder="Your full name" autocomplete="name" />
+              @if (invalid('fullName')) { <small>Full name is required.</small> }
             </label>
-
           }
 
           <label>
-            Official email
-
-            <input
-              type="email"
-              formControlName="email"
-              placeholder="you@example.com"
-              autocomplete="email"
-            />
-
-            @if (invalid('email')) {
-              <small>
-                Enter a valid email address.
-              </small>
-            }
+            Official email <span class="required-mark">*</span>
+            <span class="input-wrap">
+              <i class="pi pi-envelope" aria-hidden="true"></i>
+              <input type="email" formControlName="email" placeholder="Enter your official email address" autocomplete="email" />
+            </span>
+            @if (invalid('email')) { <small>Enter a valid email address.</small> }
           </label>
 
           @if (mode() === 'register') {
-
             <label>
-              Phone number
-
-              <div class="phone-input">
-
-                <span class="country-code">
-                  +254
-                </span>
-
-                <input
-                  type="tel"
-                  formControlName="phoneNumber"
-                  placeholder="712345678"
-                  maxlength="9"
-                  inputmode="numeric"
-                  autocomplete="tel"
-                  (input)="formatPhone()"
-                />
-
-              </div>
-
-              <span class="phone-help">
-                Enter your Kenyan number starting with 07, e.g. 0712345678
+              Phone number <span class="required-mark">*</span>
+              <span class="phone-input">
+                <span class="country-code">+254</span>
+                <input type="tel" formControlName="phoneNumber" placeholder="712345678" maxlength="9" inputmode="numeric" autocomplete="tel-national" />
               </span>
-
-              @if (invalid('phoneNumber')) {
-                <small>
-                  Enter a valid Kenyan phone number, e.g. 0712345678.
-                </small>
-              }
-
+              <span class="phone-help">Enter the 9 digits after +254, starting with 7 or 1.</span>
+              @if (invalid('phoneNumber')) { <small>Enter a valid Kenyan phone number (e.g. 712345678). Do not include the leading 0.</small> }
             </label>
 
             <label>
-              Identification / student number
-
-              <input
-                type="text"
-                formControlName="identificationId"
-                placeholder="Your ID or student number"
-              />
-
-              @if (invalid('identificationId')) {
-                <small>
-                  This field is required.
-                </small>
-              }
+              Identification / student number <span class="required-mark">*</span>
+              <input type="text" formControlName="identificationId" placeholder="Your ID or student number" />
+              @if (invalid('identificationId')) { <small>This field is required.</small> }
             </label>
-
           }
 
           <label>
-            Password
-
-            <input
-              type="password"
-              formControlName="password"
-              placeholder="At least 8 characters"
-              autocomplete="current-password"
-            />
-
-            @if (invalid('password')) {
-              <small>
-                Password must be at least 8 characters.
-              </small>
-            }
+            Password <span class="required-mark">*</span>
+            <span class="input-wrap">
+              <i class="pi pi-lock" aria-hidden="true"></i>
+              <input [type]="passwordVisible() ? 'text' : 'password'" formControlName="password" [placeholder]="mode() === 'register' ? 'At least 8 characters' : 'Enter your password'" autocomplete="current-password" />
+              @if (mode() !== 'register') {
+                <button class="password-toggle" type="button" (click)="passwordVisible.update(visible => !visible)" [attr.aria-label]="passwordVisible() ? 'Hide password' : 'Show password'">
+                  <i [class]="passwordVisible() ? 'pi pi-eye-slash' : 'pi pi-eye'" aria-hidden="true"></i>
+                </button>
+              }
+            </span>
+            @if (invalid('password')) { <small>Password must be at least 8 characters.</small> }
           </label>
 
-          <button
-            class="primary-button submit-button"
-            type="submit"
-            [disabled]="auth.loading()"
-          >
-            {{
-              auth.loading()
-                ? 'Working…'
-                : mode() === 'register'
-                  ? 'Create innovator account'
-                  : 'Sign in'
-            }}
-
-            <span>→</span>
+          <button class="primary-button submit-button" type="submit" [disabled]="auth.loading()">
+            {{ auth.loading() ? 'Working…' : mode() === 'register' ? 'Create innovator account' : 'Sign In' }}
+            <span class="pi pi-arrow-right" aria-hidden="true"></span>
           </button>
-
         </form>
 
         <p class="form-foot">
-
-          {{
-            mode() === 'register'
-              ? 'Already registered? '
-              : 'New to the Vault? '
-          }}
-
-          <a
-            [routerLink]="
-              mode() === 'register'
-                ? '/auth/login'
-                : '/auth/register'
-            "
-          >
-            {{
-              mode() === 'register'
-                ? 'Sign in'
-                : 'Create an account'
-            }}
-          </a>
-
+          {{ mode() === 'register' ? 'Already have an account?' : 'Don’t have an account?' }}
+          <a [routerLink]="mode() === 'register' ? '/auth/login' : '/auth/register'">{{ mode() === 'register' ? 'Sign in' : 'Register' }}</a>
         </p>
 
+        <div class="card-footer">
+          <span><i class="pi pi-lock" aria-hidden="true"></i> Secure access to your resources</span>
+        </div>
       </section>
-
-      <aside class="auth-aside">
-
-        <jhub-brand-logo
-          logo="jkuat"
-          variant="auth"
-        />
-
-        <jhub-brand-logo
-          logo="jhub"
-          variant="auth"
-        />
-
-        <h2>
-          Good tools make
-          <br />
-          <em>bold work</em> possible.
-        </h2>
-
-      </aside>
-
     </main>
   `,
 
   styles: [`
     :host {
       display: block;
+      min-height: 100vh;
+      background: var(--paper);
     }
 
     .auth-page {
-      min-height: calc(100vh - 78px);
+      width: min(1120px, calc(100% - 56px));
+      min-height: 100vh;
+      margin-inline: auto;
+      padding: 28px 0;
       display: grid;
       grid-template-columns: 1fr 1fr;
+      align-items: start;
+      gap: 28px;
     }
 
-    .auth-panel {
+    .auth-page.login-only {
+      width: min(576px, calc(100% - 40px));
+      grid-template-columns: minmax(0, 1fr);
+      align-content: center;
+      justify-content: center;
+      padding: 40px 0;
+    }
+
+    .login-only .intro-card {
+      display: none;
+    }
+
+    .intro-card,
+    .login-card {
+      min-width: 0;
+      overflow: hidden;
       background: #fff;
-      padding: clamp(35px, 8vw, 120px);
+      border-radius: 20px;
+      box-shadow: 0 14px 28px #17203318;
+    }
+
+    .intro-card {
+      min-height: 704px;
       display: flex;
       flex-direction: column;
+      padding: 38px 36px 0;
+    }
+
+    .login-card {
+      padding: 42px;
+    }
+
+    .login-only .login-card {
+      width: 100%;
+      padding: 34px 64px 40px;
+    }
+
+    .login-only .brand-row {
+      justify-content: center;
+      min-height: 90px;
+    }
+
+    .login-only .brand-row jhub-brand-logo {
+      width: 240px;
       justify-content: center;
     }
 
-    .eyebrow {
-      color: #3ea945;
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      min-height: 46px;
+    }
+
+    .brand-row jhub-brand-logo {
+      width: 180px;
+      max-width: 100%;
+      justify-content: flex-start;
+    }
+
+    .intro-copy {
+      margin-top: 40px;
+    }
+
+    .intro-copy h1,
+    .login-heading h1 {
+      margin: 0;
+      color: var(--navy);
+      font-weight: 750;
+      letter-spacing: -.04em;
+    }
+
+    .intro-copy h1 {
+      font-size: clamp(28px, 3vw, 35px);
+      line-height: 1.15;
+    }
+
+    .intro-copy h2 {
+      margin: 6px 0 14px;
+      color: var(--navy);
+      font-size: 21px;
+      letter-spacing: -.02em;
+    }
+
+    .intro-copy p,
+    .login-heading p {
+      margin: 0;
+      color: #667083;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .intro-copy p {
+      max-width: 400px;
+    }
+
+    .benefits {
+      display: grid;
+      gap: 14px;
+      margin: 24px 0 24px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .benefits li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #303c50;
+      font-size: 12px;
+    }
+
+    .benefit-icon {
+      display: grid;
+      flex: 0 0 36px;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      color: var(--blue);
+      background: #f0f4ff;
+      border: 1px solid #dce7ff;
+      border-radius: 9px;
+      font-size: 15px;
+    }
+
+    .benefits strong,
+    .benefits small {
+      display: block;
+    }
+
+    .benefits strong {
+      font-size: 12px;
+    }
+
+    .benefits small {
+      margin-top: 3px;
+      color: #78849a;
+      font-size: 11px;
+    }
+
+    .workshop-art {
+      position: relative;
+      min-height: 225px;
+      flex: 1;
+      overflow: hidden;
+      margin: auto -36px 0;
+      background:
+        linear-gradient(180deg, transparent 35%, #1720338c 100%),
+        linear-gradient(135deg, #d8e2df 0 24%, #a6b1a9 24% 31%, #45535d 31% 33%, #d4d0c5 33% 100%);
+    }
+
+    .workshop-art::before {
+      position: absolute;
+      inset: 0 0 42% 0;
+      content: "";
+      background:
+        repeating-linear-gradient(90deg, transparent 0 50px, #38444c 51px 55px),
+        repeating-linear-gradient(0deg, transparent 0 25px, #38444c 26px 30px),
+        linear-gradient(90deg, #929b94, #d0cfc0 40%, #6d7775);
+      opacity: .88;
+    }
+
+    .workshop-shelf {
+      position: absolute;
+      top: 14px;
+      left: 28%;
+      width: 60%;
+      height: 70px;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 5px;
+      padding: 8px;
+      background: #27313b;
+      box-shadow: 0 4px 9px #17203355;
+    }
+
+    .workshop-shelf i {
+      border: 2px solid #747b7b;
+      border-radius: 2px;
+      background: repeating-linear-gradient(0deg, #161e25 0 8px, #a3a292 9px 11px);
+    }
+
+    .workbench {
+      position: absolute;
+      right: 0;
+      bottom: 34px;
+      left: 0;
+      height: 62px;
+      background: linear-gradient(180deg, #6e7471 0 9px, #282f36 10px 100%);
+      box-shadow: 0 9px 18px #17203350;
+    }
+
+    .meter,
+    .scope,
+    .board,
+    .laptop {
+      position: absolute;
+      bottom: 35px;
+      display: block;
+      border: 3px solid #414a4c;
+      border-radius: 4px;
+      background: #d7d4c9;
+      box-shadow: 0 3px 5px #17203355;
+    }
+
+    .meter { left: 9%; width: 40px; height: 66px; }
+    .meter i { display: block; height: 24px; margin: 7px 5px; background: #a9c2a1; }
+    .meter b { display: block; width: 20px; height: 4px; margin: 0 auto; background: #323b40; }
+    .scope { left: 30%; width: 82px; height: 53px; }
+    .scope i { display: block; width: 36px; height: 21px; margin: 8px auto; border: 2px solid #536c66; background: repeating-linear-gradient(90deg, #b8d6bc 0 3px, #d7d4c9 4px 7px); }
+    .scope b { position: absolute; bottom: 5px; width: 4px; height: 9px; background: #4c5354; }
+    .scope b:nth-of-type(1) { left: 13px; }
+    .scope b:nth-of-type(2) { left: 37px; }
+    .scope b:nth-of-type(3) { right: 13px; }
+    .board { left: 50%; width: 100px; height: 44px; background: repeating-linear-gradient(0deg, #315447 0 3px, #659269 4px 5px); }
+    .board i { display: inline-block; width: 9px; height: 9px; margin: 7px 2px; background: #d3b74c; }
+    .laptop { right: 8%; width: 105px; height: 66px; transform: skewY(-8deg); }
+    .laptop i { display: block; height: 42px; margin: 5px; background: #849c9c; }
+    .art-caption {
+      position: absolute;
+      z-index: 1;
+      bottom: 18px;
+      left: 28px;
+      color: #fff;
       font-size: 10px;
       font-weight: 800;
-      letter-spacing: 2px;
-      margin: 0 0 18px;
+      letter-spacing: 1.5px;
     }
 
-    .auth-panel h1 {
-      font: 400 clamp(40px, 5vw, 58px)/1.02 Georgia, serif;
-      color: #262571;
-      margin: 0;
+    .art-shape {
+      position: absolute;
+      bottom: -36px;
+      left: 14px;
+      width: 110px;
+      height: 110px;
+      border-radius: 18px;
+      background: #2a4695c9;
+      transform: rotate(35deg);
     }
 
-    .auth-panel > p:not(.eyebrow) {
-      color: #667083;
-      line-height: 1.6;
-      max-width: 390px;
-      margin: 20px 0 30px;
+    .login-heading {
+      margin: 38px 0 26px;
     }
 
-    .auth-panel form {
+    .login-heading h1 {
+      font-size: 27px;
+      line-height: 1.2;
+    }
+
+    .login-heading p {
+      margin-top: 6px;
+      font-size: 13px;
+    }
+
+    .login-card form {
       display: grid;
-      gap: 16px;
-      max-width: 390px;
+      gap: 17px;
     }
 
-    .auth-panel label {
+    .login-card label {
+      display: block;
+      color: #4f5c70;
       font-size: 11px;
-      color: #586174;
+      font-weight: 650;
     }
 
-    .auth-panel input {
-      display: block;
+    .required-mark {
+      color: var(--green);
+    }
+
+    .login-card input {
       width: 100%;
-      box-sizing: border-box;
-      border: 1px solid #dce0e8;
+      height: 42px;
+      padding: 0 13px;
+      color: var(--ink);
+      border: 1px solid #dce2eb;
+      border-radius: 10px;
+      outline-color: var(--blue);
+      font-size: 12px;
+    }
+
+    .login-card input::placeholder {
+      color: #9aa8bf;
+    }
+
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
       margin-top: 7px;
-      padding: 13px;
-      outline-color: #3ea945;
+    }
+
+    .input-wrap > i {
+      position: absolute;
+      left: 14px;
+      z-index: 1;
+      color: #91a1bb;
       font-size: 14px;
-      border-radius: 4px;
     }
 
-    .auth-panel input:focus {
-      border-color: #3ea945;
+    .input-wrap input {
+      padding-left: 39px;
     }
 
-    .auth-panel small {
+    .password-toggle {
+      position: absolute;
+      right: 8px;
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      color: #91a1bb;
+      border: 0;
+      background: transparent;
+    }
+
+    .password-toggle + input,
+    .input-wrap:has(.password-toggle) input {
+      padding-right: 42px;
+    }
+
+    .login-card small {
       display: block;
+      margin-top: 5px;
       color: #e6292a;
       font-size: 10px;
-      margin-top: 5px;
     }
 
     .phone-input {
       display: flex;
-      width: 100%;
       margin-top: 7px;
     }
 
@@ -326,20 +509,16 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
       display: flex;
       align-items: center;
       padding: 0 12px;
+      color: var(--navy);
       background: #f3f5f7;
-      border: 1px solid #dce0e8;
+      border: 1px solid #dce2eb;
       border-right: 0;
-      color: #262571;
-      font-size: 13px;
-      font-weight: 700;
-      border-radius: 4px 0 0 4px;
+      border-radius: 8px 0 0 8px;
+      font-size: 12px;
     }
 
     .phone-input input {
-      flex: 1;
-      width: auto;
-      margin-top: 0;
-      border-radius: 0 4px 4px 0;
+      border-radius: 0 8px 8px 0;
     }
 
     .phone-help {
@@ -347,12 +526,22 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
       margin-top: 5px;
       color: #8d95a3;
       font-size: 10px;
+      font-weight: 400;
     }
 
     .submit-button {
       width: 100%;
-      justify-content: space-between;
-      margin-top: 8px;
+      min-height: 44px;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 1px;
+      color: #fff;
+      background: var(--blue);
+      border: 0;
+      border-radius: 10px;
+      box-shadow: 0 3px 5px #1720332b;
+      font-size: 13px;
+      font-weight: 650;
     }
 
     .submit-button:disabled {
@@ -363,7 +552,6 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
     .form-alert {
       padding: 12px;
       margin-bottom: 18px;
-      max-width: 390px;
       font-size: 12px;
     }
 
@@ -374,46 +562,103 @@ import { BrandLogoComponent } from '../shared/brand-logo.component';
     }
 
     .form-foot {
-      font-size: 11px !important;
-      color: #8d95a3 !important;
+      margin: 27px 0 30px;
+      color: #78849a;
+      font-size: 11px;
+      text-align: center;
     }
 
     .form-foot a {
-      color: #262571;
-      font-weight: 700;
+      margin-left: 5px;
+      color: var(--blue);
+      font-weight: 750;
     }
 
-    .auth-aside {
-      background: #262571;
-      color: #fff;
-      padding: 100px;
+    .card-footer {
       display: flex;
-      flex-direction: column;
-      justify-content: center;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-top: 18px;
+      color: #91a0b7;
+      border-top: 1px solid #edf0f4;
+      font-size: 10px;
     }
 
-    .auth-aside h2 {
-      font: 400 45px Georgia, serif;
-    }
-
-    .auth-aside h2 em {
-      color: #89be32;
+    .card-footer > span,
+    .powered-by {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
     }
 
     @media (max-width: 760px) {
-
       .auth-page {
+        width: min(100% - 32px, 540px);
         grid-template-columns: 1fr;
+        gap: 18px;
+        padding: 16px 0;
       }
 
-      .auth-aside {
-        display: none;
+      .auth-page.login-only {
+        width: min(100% - 32px, 576px);
+        min-height: 100vh;
+        align-content: center;
+        padding: 24px 0;
       }
 
-      .auth-panel {
-        padding: 60px 24px;
+      .intro-card {
+        min-height: 0;
+        padding: 28px 24px 0;
       }
 
+      .workshop-art {
+        min-height: 180px;
+        margin-inline: -24px;
+      }
+
+      .login-card {
+        padding: 30px 24px;
+      }
+
+      .login-only .login-card {
+        padding: 30px 40px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .auth-page {
+        width: min(100% - 20px, 540px);
+      }
+
+      .intro-card {
+        padding-inline: 20px;
+      }
+
+      .workshop-art {
+        margin-inline: -20px;
+      }
+
+      .login-card {
+        padding: 26px 20px;
+      }
+
+      .login-only .login-card {
+        padding: 26px 24px;
+      }
+
+      .brand-row {
+        gap: 12px;
+      }
+
+      .brand-row jhub-brand-logo {
+        width: 160px;
+      }
+
+      .card-footer {
+        align-items: flex-start;
+        flex-direction: column;
+      }
     }
   `]
 })
@@ -426,6 +671,7 @@ export class AuthPageComponent {
   private readonly router = inject(Router);
 
   protected readonly Role = Role;
+  protected readonly passwordVisible = signal(false);
 
   protected readonly mode = computed(() => {
     const url = this.router.url;
@@ -459,25 +705,11 @@ export class AuthPageComponent {
       ]
     ],
 
-    /*
-     * IMPORTANT:
-     *
-     * The user enters:
-     *
-     *     0712345678
-     *
-     * We convert it before sending:
-     *
-     *     +254712345678
-     *
-     * Only the 9 digits after the leading 0 are stored
-     * in the phone input itself.
-     */
     phoneNumber: [
       '',
       [
         Validators.required,
-        Validators.pattern(/^07\d{8}$/)
+        Validators.pattern(/^[17]\d{8}$/)
       ]
     ],
 
@@ -507,59 +739,9 @@ export class AuthPageComponent {
       (control.dirty || control.touched);
   }
 
-  protected formatPhone(): void {
-
-    const control = this.form.controls.phoneNumber;
-
-    let value = control.value ?? '';
-
-    /*
-     * Remove spaces, +, brackets, dashes and letters.
-     * The user should only enter digits.
-     */
-    value = value.replace(/\D/g, '');
-
-    /*
-     * If the user starts typing +254 or 254,
-     * automatically convert it back to the local
-     * 07XXXXXXXX format.
-     *
-     * This makes the field forgiving if they paste
-     * an international number.
-     */
-    if (value.startsWith('254')) {
-      value = '0' + value.substring(3);
-    }
-
-    /*
-     * Make sure it starts with 07.
-     */
-    if (value.length > 0 && !value.startsWith('0')) {
-      value = '0' + value;
-    }
-
-    /*
-     * Only allow 10 digits:
-     *
-     * 0712345678
-     */
-    value = value.substring(0, 10);
-
-    control.setValue(value, {
-      emitEvent: false
-    });
-  }
-
   protected submit(): void {
 
     this.form.markAllAsTouched();
-
-    /*
-     * Always normalize the phone before validation/submission.
-     */
-    if (this.mode() === 'register') {
-      this.formatPhone();
-    }
 
     const values = this.form.getRawValue();
 
@@ -583,23 +765,11 @@ export class AuthPageComponent {
 
     if (this.mode() === 'register') {
 
-      /*
-       * Convert:
-       *
-       * 0712345678
-       *
-       * to:
-       *
-       * +254712345678
-       */
-      const phoneNumber =
-        this.toInternationalPhone(values.phoneNumber);
-
       this.auth.register({
         fullName: values.fullName,
         email: values.email,
         password: values.password,
-        phoneNumber,
+        phoneNumber: this.toInternationalPhone(values.phoneNumber),
         identificationId: values.identificationId
       });
 
@@ -614,31 +784,6 @@ export class AuthPageComponent {
   }
 
   private toInternationalPhone(phone: string): string {
-
-    const digits = phone.replace(/\D/g, '');
-
-    /*
-     * 0712345678
-     *      ↓
-     * 712345678
-     *      ↓
-     * +254712345678
-     */
-    if (digits.startsWith('0')) {
-      return '+254' + digits.substring(1);
-    }
-
-    /*
-     * Also support 254712345678
-     * if something bypasses the UI.
-     */
-    if (digits.startsWith('254')) {
-      return '+' + digits;
-    }
-
-    /*
-     * Fallback.
-     */
-    return '+254' + digits;
+    return `+254${phone}`;
   }
 }

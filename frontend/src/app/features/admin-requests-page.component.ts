@@ -671,18 +671,13 @@ export class AdminRequestsPageComponent {
       next: result => {
         if (result.statusCounts) {
           this.statusCounts.set(result.statusCounts);
-        } else if (!this.legacyBackend() || !this.statusCounts()) {
-          this.legacyBackend.set(true);
+        } else if (!this.statusCounts()) {
           this.loadStatusCounts();
         }
         const pageCount = Math.max(1, result.totalPages);
         if (this.page() > pageCount) {
           this.page.set(pageCount);
           this.loadPage();
-          return;
-        }
-        if (this.legacyBackend() && (this.dateFrom() || this.dateTo())) {
-          this.loadLegacyDateFilteredPage();
           return;
         }
         this.requests.set(result.items);
@@ -705,44 +700,6 @@ export class AdminRequestsPageComponent {
         this.statusCounts.set({ ...statusCounts, total: all.total });
       },
       error: (error: unknown) => this.pageError.set(this.requestErrorMessage(error))
-    });
-  }
-
-  private loadLegacyDateFilteredPage(): void {
-    const filters = { search: this.search().trim() || undefined, status: this.status() || undefined };
-    this.service.listAdminPage({ ...filters, page: 1, limit: 100 }).subscribe({
-      next: firstPage => {
-        const laterPages = Array.from({ length: Math.max(0, firstPage.totalPages - 1) }, (_, index) =>
-          this.service.listAdminPage({ ...filters, page: index + 2, limit: 100 })
-        );
-        forkJoin(laterPages.length ? laterPages : [this.service.listAdminPage({ ...filters, page: 1, limit: 100 })]).subscribe({
-          next: pages => {
-            const allRequests = [firstPage, ...pages.slice(laterPages.length ? 0 : 1)].flatMap(page => page.items);
-            const matching = allRequests.filter(request => {
-              const requestedDate = request.createdAt.slice(0, 10);
-              return (!this.dateFrom() || requestedDate >= this.dateFrom()) && (!this.dateTo() || requestedDate <= this.dateTo());
-            });
-            const pageCount = Math.max(1, Math.ceil(matching.length / this.pageSize()));
-            if (this.page() > pageCount) {
-              this.page.set(pageCount);
-              this.loadLegacyDateFilteredPage();
-              return;
-            }
-            this.requests.set(matching.slice((this.page() - 1) * this.pageSize(), this.page() * this.pageSize()));
-            this.filteredTotal.set(matching.length);
-            this.totalPages.set(pageCount);
-            this.loading.set(false);
-          },
-          error: (error: unknown) => {
-            this.pageError.set(this.requestErrorMessage(error));
-            this.loading.set(false);
-          }
-        });
-      },
-      error: (error: unknown) => {
-        this.pageError.set(this.requestErrorMessage(error));
-        this.loading.set(false);
-      }
     });
   }
 
@@ -772,7 +729,11 @@ export class AdminRequestsPageComponent {
   }
 
   protected approve(request: AssetRequest): void { this.action(request, id => this.service.approve(id), 'Request approved'); }
-  protected reject(request: AssetRequest): void { this.action(request, id => this.service.reject(id, 'Rejected by administrator'), 'Request rejected'); }
+  protected reject(request: AssetRequest): void {
+    const reason = window.prompt('Enter a reason for rejecting this request.')?.trim();
+    if (!reason) return;
+    this.action(request, id => this.service.reject(id, reason), 'Request rejected');
+  }
   protected checkout(request: AssetRequest): void { this.action(request, id => this.service.checkout(id), 'Request checked out'); }
   protected returnRequest(request: AssetRequest): void { this.action(request, id => this.service.returnAsset(id), 'Request marked returned'); }
 

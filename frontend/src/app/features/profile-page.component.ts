@@ -3,6 +3,8 @@ import {
   Component,
   inject
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { filter, firstValueFrom, map, tap } from 'rxjs';
 
 import {
   FormBuilder,
@@ -15,10 +17,12 @@ import { RouterLink } from '@angular/router';
 import { ProfileStore } from '../state/profile.store';
 import { AuthStore } from '../state/auth.store';
 import { Role } from '../core/models';
+import { MediaService, MediaUpload, UploadProgress } from '../core/media.service';
 
 @Component({
   selector: 'jhub-profile-page',
   standalone: true,
+  styleUrls: ['./innovator-theme.component.css'],
   imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
@@ -82,18 +86,18 @@ import { Role } from '../core/models';
           </p>
 
           <label class="upload-button">
-            {{ uploadingImage ? 'Processing image…' : 'Change profile picture' }}
+            {{ uploadingImage ? 'Uploading ' + uploadProgress + '%' : 'Change profile picture' }}
 
             <input
               type="file"
-              accept="image/jpeg,image/png"
+              accept="image/jpeg,image/png,image/webp"
               [disabled]="uploadingImage"
               (change)="upload($event)"
             />
           </label>
 
           <small>
-            JPG or PNG · automatically compressed · max 1MB
+            JPG, PNG, or WebP · automatically compressed · max 1MB
           </small>
 
           @if (imageMessage) {
@@ -101,6 +105,7 @@ import { Role } from '../core/models';
               class="image-message"
               [class.error]="imageError"
               [class.success]="!imageError"
+              role="status"
             >
               {{ imageMessage }}
             </div>
@@ -143,15 +148,21 @@ import { Role } from '../core/models';
             <label>
               Phone number
 
-              <input
-                formControlName="phoneNumber"
-                placeholder="07XXXXXXXX"
-                inputmode="numeric"
-              >
+              <div class="phone-input">
+                <span class="country-code">+254</span>
+                <input
+                  type="tel"
+                  formControlName="phoneNumber"
+                  placeholder="712345678"
+                  maxlength="9"
+                  inputmode="numeric"
+                  autocomplete="tel-national"
+                >
+              </div>
 
               @if (invalid('phoneNumber')) {
                 <small>
-                  Enter a valid Kenyan phone number, e.g. 0712345678.
+                  Enter a valid Kenyan phone number (e.g. 712345678). Do not include the leading 0.
                 </small>
               }
             </label>
@@ -405,6 +416,28 @@ import { Role } from '../core/models';
       border-color: #3ea945;
     }
 
+    .phone-input {
+      display: flex;
+      align-items: stretch;
+      margin-top: 7px;
+    }
+
+    .phone-input .country-code {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid #dce0e8;
+      border-right: 0;
+      background: #f7f8fb;
+      color: #586174;
+    }
+
+    .phone-input input {
+      flex: 1;
+      min-width: 0;
+      margin-top: 0;
+    }
+
     .profile-form small {
       display: block;
       color: #e6292a;
@@ -476,6 +509,8 @@ export class ProfilePageComponent {
 
   private readonly auth = inject(AuthStore);
 
+  private readonly media = inject(MediaService);
+
   private readonly fb = inject(FormBuilder);
 
   protected readonly form = this.fb.nonNullable.group({
@@ -498,22 +533,11 @@ export class ProfilePageComponent {
       ]
     ],
 
-    /*
-     * USER ENTERS:
-     *
-     * 0712345678
-     *
-     * We convert it to:
-     *
-     * +254712345678
-     *
-     * before sending it to the backend.
-     */
     phoneNumber: [
       '',
       [
         Validators.required,
-        Validators.pattern(/^07\d{8}$/)
+        Validators.pattern(/^[17]\d{8}$/)
       ]
     ],
 
@@ -547,6 +571,8 @@ export class ProfilePageComponent {
   protected previewUrl: string | null = null;
 
   protected uploadingImage = false;
+
+  protected uploadProgress = 0;
 
   protected imageMessage = '';
 
@@ -703,16 +729,14 @@ export class ProfilePageComponent {
     this.imageMessage = '';
     this.imageError = false;
 
-    /*
-     * Only allow JPG and PNG.
-     */
     if (
       file.type !== 'image/jpeg' &&
-      file.type !== 'image/png'
+      file.type !== 'image/png' &&
+      file.type !== 'image/webp'
     ) {
 
       this.setImageError(
-        'Please select a JPG or PNG image.'
+        'Please select a JPG, PNG, or WebP image.'
       );
 
       input.value = '';
@@ -757,18 +781,14 @@ export class ProfilePageComponent {
 
     } catch (error) {
 
-      console.error(
-        'Profile image processing failed:',
-        error
-      );
-
       this.setImageError(
-        'Unable to process this image. Please try another image.'
+        this.imageUploadError(error)
       );
 
     } finally {
 
       this.uploadingImage = false;
+      this.uploadProgress = 0;
 
       /*
        * Allow selecting the same file again.
@@ -1010,13 +1030,6 @@ export class ProfilePageComponent {
     );
   }
 
-  /**
-   * This is where the compressed image
-   * is currently prepared for upload.
-   *
-   * If your ProfileStore already has an
-   * uploadImage method, call it here.
-   */
   private async processImage(
     file: File
   ): Promise<void> {
@@ -1033,50 +1046,43 @@ export class ProfilePageComponent {
       return;
     }
 
-    /*
-     * Display compressed image immediately.
-     */
-    const url =
-      URL.createObjectURL(file);
-
-    if (this.previewUrl?.startsWith('blob:')) {
-      URL.revokeObjectURL(
-        this.previewUrl
-      );
-    }
-
-    this.previewUrl = url;
-
-    this.imageMessage =
-      `Image ready: ${this.formatBytes(file.size)}`;
-
+    const previousPreview = this.previewUrl;
+    const localPreview = URL.createObjectURL(file);
+    this.previewUrl = localPreview;
+    this.imageMessage = `Uploading image · ${this.formatBytes(file.size)}`;
     this.imageError = false;
 
-    /*
-     * IMPORTANT:
-     *
-     * This is the compressed File that should
-     * be sent to Cloudinary/backend.
-     *
-     * If your ProfileStore has an image upload
-     * method, connect it here.
-     */
-    console.log(
-      'Compressed profile image:',
-      {
-        name: file.name,
-        type: file.type,
-        size: file.size
+    try {
+      const result = await firstValueFrom(
+        this.media.upload(file, 'profile').pipe(
+          tap((update: UploadProgress) => this.uploadProgress = update.percent),
+          filter((update): update is UploadProgress & { result: MediaUpload } => update.result !== undefined),
+          map(update => update.result)
+        )
+      );
+      if (!result.user) {
+        throw new Error('The server did not return the updated profile.');
       }
-    );
 
-    /*
-     * If your existing ProfileStore supports:
-     *
-     * this.profile.uploadAvatar(file, user => ...)
-     *
-     * put that call here.
-     */
+      this.auth.updateUser(result.user);
+      this.previewUrl = result.url;
+      URL.revokeObjectURL(localPreview);
+      this.imageMessage = 'Profile picture uploaded successfully.';
+    } catch (error) {
+      URL.revokeObjectURL(localPreview);
+      this.previewUrl = previousPreview;
+      throw error;
+    }
+  }
+
+  private imageUploadError(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) return 'Could not reach the server. Check that the backend is running and try again.';
+      if (typeof error.error?.message === 'string') return error.error.message;
+      if (error.status === 401) return 'Your session has expired. Sign in again and retry the upload.';
+      return 'The image upload failed. Please try again.';
+    }
+    return error instanceof Error ? error.message : 'Unable to process this image. Please try another image.';
   }
 
   private setImageError(
@@ -1121,10 +1127,6 @@ export class ProfilePageComponent {
     return `${base}.${extension}`;
   }
 
-  /**
-   * Convert stored +254 number into
-   * the user-friendly 07XXXXXXXX format.
-   */
   private displayPhoneNumber(
     phone: string
   ): string {
@@ -1134,39 +1136,23 @@ export class ProfilePageComponent {
     }
 
     if (phone.startsWith('+254')) {
-      return `0${phone.substring(4)}`;
+      return phone.substring(4);
     }
 
     if (phone.startsWith('254')) {
-      return `0${phone.substring(3)}`;
+      return phone.substring(3);
+    }
+
+    if (phone.startsWith('0')) {
+      return phone.substring(1);
     }
 
     return phone;
   }
 
-  /**
-   * Convert 07XXXXXXXX into +254XXXXXXXXX
-   * before sending to backend.
-   */
   private normalisePhoneNumber(
     phone: string
   ): string {
-
-    const cleaned =
-      phone.replace(/\D/g, '');
-
-    if (cleaned.startsWith('07')) {
-      return `+254${cleaned.substring(1)}`;
-    }
-
-    if (cleaned.startsWith('254')) {
-      return `+${cleaned}`;
-    }
-
-    if (cleaned.startsWith('7')) {
-      return `+254${cleaned}`;
-    }
-
-    return phone;
+    return `+254${phone}`;
   }
 }

@@ -4,10 +4,14 @@ Express + TypeScript + Prisma + PostgreSQL backend for the existing Angular appl
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and set `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CLIENT_URL`, and `PORT`.
+1. Create `backend/.env` and set `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`,
+   `CLIENT_URL`, and `PORT`. For image uploads, also set `CLOUDINARY_CLOUD_NAME`,
+   `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` using credentials from your
+   Cloudinary dashboard. Keep this file private; it is ignored by Git.
 2. Start PostgreSQL locally, or run `docker compose up --build` from the
-   repository root to start PostgreSQL and the API together. The API container
-   applies pending migrations before it starts.
+   repository root to start PostgreSQL and the API together. Compose optionally
+   reads `backend/.env` into the API container. The container applies pending
+   Prisma migrations before it starts.
 3. Run `npm install` inside `backend/`.
 4. Run `npx prisma generate`.
 5. Run `npx prisma migrate deploy` for the existing migration history.
@@ -30,4 +34,7 @@ npx prisma generate
 npx prisma migrate status
 ```
 
-Cloudinary and mail integrations are environment-driven. The API never returns password hashes or secrets.
+Cloudinary image uploads accept JPEG, PNG, and WebP files up to 5 MB. Profile
+images are associated with the authenticated user; asset images are available
+to administrators. The API never returns password hashes or Cloudinary
+credentials.

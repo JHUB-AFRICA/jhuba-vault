@@ -13,6 +13,7 @@ interface LoanRow {
 @Component({
   selector: 'jhub-innovator-dashboard-page',
   standalone: true,
+  styleUrls: ['./innovator-theme.component.css'],
   imports: [DatePipe, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

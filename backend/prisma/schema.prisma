@@ -18,6 +18,7 @@ model User {
   bio              String?
   githubUrl        String?
   avatarUrl        String?
+  avatarPublicId   String?
   role             Role           @default(INNOVATOR)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
