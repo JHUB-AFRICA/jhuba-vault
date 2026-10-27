@@ -29,25 +29,36 @@ export const assetSchema = z.object({
   totalQuantity: z.number().int().min(1),
   availableQty: z.number().int().min(0),
   imageUrl: z.string().url().nullable().optional(),
-  specifications: z.record(z.string(), z.string())
+  specifications: z.record(z.string(), z.string()).default({})
+}).refine(value => value.availableQty <= value.totalQuantity, {
+  message: 'availableQty cannot exceed totalQuantity',
+  path: ['availableQty']
 });
 
 export const requestSchema = z.object({
   projectName: z.string().trim().min(1).max(120),
   projectAbstract: z.string().trim().min(20).max(5000),
   loanDays: z.number().int().min(1).max(365),
-  startDate: z.iso.date(),
-  items: z.array(z.object({
-    assetId: z.uuid(),
-    quantity: z.number().int().min(1)
-  })).min(1).max(100),
-  teamMembers: z.array(z.object({
-    fullName: z.string().trim().min(1).max(120),
-    email: z.string().trim().email().max(254).transform(value => value.toLowerCase()),
-    phoneNumber: z.string().trim().min(3).max(40),
-    studentOrIdNo: z.string().trim().min(1).max(64),
-    roleInProject: z.string().trim().min(1).max(120)
-  })).max(50)
+  startDate: z.coerce.date(),
+  items: z.array(
+    z.object({
+      assetId: z.string().uuid(),
+      quantity: z.number().int().min(1)
+    })
+  ).min(1).max(100),
+  teamMembers: z.array(
+    z.object({
+      fullName: z.string().trim().min(1).max(120),
+      email: z.string().trim().email().max(254).transform(value => value.toLowerCase()),
+      phoneNumber: z.string().trim().min(3).max(40),
+      studentOrIdNo: z.string().trim().min(1).max(64),
+      roleInProject: z.string().trim().min(1).max(120)
+    })
+  ).max(50).default([])
+});
+
+export const adminRequestSchema = requestSchema.extend({
+  innovatorId: z.string().uuid()
 });
 
 export const rejectSchema = z.object({
@@ -57,7 +68,7 @@ export const rejectSchema = z.object({
 export const statusQuery = z.object({
   status: z.nativeEnum(RequestStatus).optional(),
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10)
+  limit: z.coerce.number().int().min(1).max(100).default(20)
 });
 
 export const adminRequestQuery = statusQuery.extend({

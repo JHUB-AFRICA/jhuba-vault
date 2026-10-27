@@ -30,7 +30,12 @@ export const routes: Routes = [
   { path: 'app/requests', component: RequestHistoryPageComponent, canActivate: [authGuard] },
   { path: 'app/cart', component: RequestCartPageComponent, canActivate: [authGuard] },
   { path: 'app/requests/new', component: RequestCartPageComponent, canActivate: [authGuard] },
+  
+  // Wizard Steps mapping to your component workspace
   { path: 'app/requests/review', component: WorkspacePageComponent, canActivate: [authGuard] },
+  { path: 'app/requests/project', component: WorkspacePageComponent, canActivate: [authGuard] },
+  { path: 'app/requests/team', component: WorkspacePageComponent, canActivate: [authGuard] },
+  
   { path: 'app/requests/submitted', component: RequestSubmittedPageComponent, canActivate: [authGuard] },
   { path: 'app/requests/:id', component: RequestDetailsPageComponent, canActivate: [authGuard] },
   { path: 'app/loans', component: RequestHistoryPageComponent, canActivate: [authGuard] },
