@@ -1,15 +1,12 @@
-
-
-
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
 import { AssetCategory, AssetRequest, AuditLog, RequestStatus, Role } from './core/models';
-import { AdminDashboard } from './core/api.service';
-import { AuthStore } from './state/auth.store';
-import { AssetStore } from './state/asset.store';
-import { BrandLogoComponent } from './shared/brand-logo.component';
+import { AdminDashboard } from './features/admin/data-access/admin.service';
+import { AuthStore } from './features/auth/data-access/auth.store';
+import { AssetStore } from './features/catalogue/data-access/asset.store';
+import { BrandLogoComponent } from './shared/ui/brand-logo.component';
 
 @Component({
   selector: 'jhub-root',

@@ -1,48 +1,125 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard, roleGuard } from './core/guards';
 import { Role } from './core/models';
-import { AuthPageComponent } from './features/auth-page.component';
-import { CataloguePageComponent } from './features/catalogue-page.component';
-import { AssetDetailsPageComponent } from './features/asset-details-page.component';
-import { ProfilePageComponent } from './features/profile-page.component';
-import { WorkspacePageComponent } from './features/workspace-page.component';
-import { AdminPageComponent } from './features/admin-page.component';
-import { RequestDetailsPageComponent } from './features/request-details-page.component';
-import { SimpleWorkspacePageComponent } from './features/simple-workspace-page.component';
-import { RequestSubmittedPageComponent } from './features/request-submitted-page.component';
-import { RequestCartPageComponent } from './features/request-cart-page.component';
-import { RequestHistoryPageComponent } from './features/request-history-page.component';
-import { AdminRequestsPageComponent } from './features/admin-requests-page.component';
-import { InnovatorDashboardPageComponent } from './features/innovator-dashboard-page.component';
-import { AdminDashboardPageComponent } from './features/admin-dashboard-page.component';
-import { AdminUsersPageComponent } from './features/admin-users-page.component';
-import { AdminInventoryPageComponent } from './features/admin-inventory-page.component';
-import { AdminSettingsPageComponent } from './features/admin-settings-page.component';
 
 export const routes: Routes = [
-  { path: 'auth/login', component: AuthPageComponent, canActivate: [guestGuard] },
-  { path: 'auth/register', component: AuthPageComponent, canActivate: [guestGuard] },
-  { path: 'admin/login', component: AuthPageComponent, canActivate: [guestGuard] },
-  { path: 'catalogue', component: CataloguePageComponent },
-  { path: 'requests', component: AdminRequestsPageComponent, canActivate: [authGuard, roleGuard(Role.ADMIN)] },
-  { path: 'assets/:id', component: AssetDetailsPageComponent },
-  { path: 'app/dashboard', component: InnovatorDashboardPageComponent, canActivate: [authGuard] },
-  { path: 'app/requests', component: RequestHistoryPageComponent, canActivate: [authGuard] },
-  { path: 'app/cart', component: RequestCartPageComponent, canActivate: [authGuard] },
-  { path: 'app/requests/new', component: RequestCartPageComponent, canActivate: [authGuard] },
-  { path: 'app/requests/review', component: WorkspacePageComponent, canActivate: [authGuard] },
-  { path: 'app/requests/submitted', component: RequestSubmittedPageComponent, canActivate: [authGuard] },
-  { path: 'app/requests/:id', component: RequestDetailsPageComponent, canActivate: [authGuard] },
-  { path: 'app/loans', component: RequestHistoryPageComponent, canActivate: [authGuard] },
-  { path: 'app/profile', component: ProfilePageComponent, canActivate: [authGuard] },
-  { path: 'app/team', component: SimpleWorkspacePageComponent, canActivate: [authGuard] },
-  { path: 'app/settings', component: SimpleWorkspacePageComponent, canActivate: [authGuard] },
-  { path: 'admin/dashboard', component: AdminDashboardPageComponent, canActivate: [authGuard, roleGuard(Role.ADMIN)] },
-  { path: 'admin/requests', component: AdminRequestsPageComponent, canActivate: [authGuard, roleGuard(Role.ADMIN)] },
-  { path: 'admin/assets', component: AdminPageComponent, canActivate: [authGuard, roleGuard(Role.ADMIN)] },
-  { path: 'admin/inventory', component: AdminInventoryPageComponent, canActivate: [authGuard, roleGuard(Role.ADMIN)] },
-  { path: 'admin/users', component: AdminUsersPageComponent, canActivate: [authGuard, roleGuard(Role.ADMIN)] },
-  { path: 'admin/audit-log', component: AdminPageComponent, canActivate: [authGuard, roleGuard(Role.ADMIN)] },
-  { path: 'admin/settings', component: AdminSettingsPageComponent, canActivate: [authGuard, roleGuard(Role.ADMIN)] },
+  {
+    path: 'auth/login',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/pages/auth-page.component').then(module => module.AuthPageComponent)
+  },
+  {
+    path: 'auth/register',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/pages/auth-page.component').then(module => module.AuthPageComponent)
+  },
+  {
+    path: 'admin/login',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/pages/auth-page.component').then(module => module.AuthPageComponent)
+  },
+  {
+    path: 'catalogue',
+    loadComponent: () => import('./features/catalogue/pages/catalogue-page.component').then(module => module.CataloguePageComponent)
+  },
+  {
+    path: 'requests',
+    canActivate: [authGuard, roleGuard(Role.ADMIN)],
+    loadComponent: () => import('./features/admin/pages/admin-requests-page.component').then(module => module.AdminRequestsPageComponent)
+  },
+  {
+    path: 'assets/:id',
+    loadComponent: () => import('./features/catalogue/pages/asset-details-page.component').then(module => module.AssetDetailsPageComponent)
+  },
+  {
+    path: 'app/dashboard',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/dashboard/pages/innovator-dashboard-page.component').then(module => module.InnovatorDashboardPageComponent)
+  },
+  {
+    path: 'app/requests',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/request-history-page.component').then(module => module.RequestHistoryPageComponent)
+  },
+  {
+    path: 'app/cart',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/request-cart-page.component').then(module => module.RequestCartPageComponent)
+  },
+  {
+    path: 'app/requests/new',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/request-cart-page.component').then(module => module.RequestCartPageComponent)
+  },
+  {
+    path: 'app/requests/review',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/workspace-page.component').then(module => module.WorkspacePageComponent)
+  },
+  {
+    path: 'app/requests/submitted',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/request-submitted-page.component').then(module => module.RequestSubmittedPageComponent)
+  },
+  {
+    path: 'app/requests/:id',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/request-details-page.component').then(module => module.RequestDetailsPageComponent)
+  },
+  {
+    path: 'app/loans',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/request-history-page.component').then(module => module.RequestHistoryPageComponent)
+  },
+  {
+    path: 'app/profile',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/pages/profile-page.component').then(module => module.ProfilePageComponent)
+  },
+  {
+    path: 'app/team',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/simple-workspace-page.component').then(module => module.SimpleWorkspacePageComponent)
+  },
+  {
+    path: 'app/settings',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/simple-workspace-page.component').then(module => module.SimpleWorkspacePageComponent)
+  },
+  {
+    path: 'admin/dashboard',
+    canActivate: [authGuard, roleGuard(Role.ADMIN)],
+    loadComponent: () => import('./features/admin/pages/admin-dashboard-page.component').then(module => module.AdminDashboardPageComponent)
+  },
+  {
+    path: 'admin/requests',
+    canActivate: [authGuard, roleGuard(Role.ADMIN)],
+    loadComponent: () => import('./features/admin/pages/admin-requests-page.component').then(module => module.AdminRequestsPageComponent)
+  },
+  {
+    path: 'admin/assets',
+    canActivate: [authGuard, roleGuard(Role.ADMIN)],
+    loadComponent: () => import('./features/admin/pages/admin-page.component').then(module => module.AdminPageComponent)
+  },
+  {
+    path: 'admin/inventory',
+    canActivate: [authGuard, roleGuard(Role.ADMIN)],
+    loadComponent: () => import('./features/admin/pages/admin-inventory-page.component').then(module => module.AdminInventoryPageComponent)
+  },
+  {
+    path: 'admin/users',
+    canActivate: [authGuard, roleGuard(Role.ADMIN)],
+    loadComponent: () => import('./features/admin/pages/admin-users-page.component').then(module => module.AdminUsersPageComponent)
+  },
+  {
+    path: 'admin/audit-log',
+    canActivate: [authGuard, roleGuard(Role.ADMIN)],
+    loadComponent: () => import('./features/admin/pages/admin-page.component').then(module => module.AdminPageComponent)
+  },
+  {
+    path: 'admin/settings',
+    canActivate: [authGuard, roleGuard(Role.ADMIN)],
+    loadComponent: () => import('./features/admin/pages/admin-settings-page.component').then(module => module.AdminSettingsPageComponent)
+  },
   { path: '**', redirectTo: '' }
 ];

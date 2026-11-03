@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { map } from 'rxjs';
-import { AuthStore } from '../state/auth.store';
+import { AuthStore } from '../features/auth/data-access/auth.store';
 import { Role } from './models';
 
 export const authGuard: CanActivateFn = () => { const auth = inject(AuthStore); const router = inject(Router); return auth.hydrate().pipe(map(user => user ? true : router.createUrlTree(['/auth/login']))); };
