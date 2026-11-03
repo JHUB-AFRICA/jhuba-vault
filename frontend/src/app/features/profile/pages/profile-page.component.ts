@@ -1,9 +1,11 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  signal,
-  inject
+  inject,
+  signal
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { filter, firstValueFrom, map, tap } from 'rxjs';
 
 import {
   FormBuilder,
@@ -11,17 +13,15 @@ import {
   Validators
 } from '@angular/forms';
 
-import { RouterLink } from '@angular/router';
-
 import { ProfileStore } from '../data-access/profile.store';
 import { AuthStore } from '../../auth/data-access/auth.store';
 import { Role } from '../../../core/models';
+import { MediaService, MediaUpload, UploadProgress } from '../../../core/media.service';
 
 @Component({
   selector: 'jhub-profile-page',
   standalone: true,
-  styleUrls: ['../../../shared/styles/innovator-theme.component.css'],
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
   template: `
@@ -84,18 +84,18 @@ import { Role } from '../../../core/models';
           </p>
 
           <label class="upload-button">
-            {{ uploadingImage() ? 'Processing image…' : 'Change profile picture' }}
+            {{ uploadingImage() ? 'Uploading ' + uploadProgress() + '%' : 'Change profile picture' }}
 
             <input
               type="file"
-              accept="image/jpeg,image/png"
+              accept="image/jpeg,image/png,image/webp"
               [disabled]="uploadingImage()"
               (change)="upload($event)"
             />
           </label>
 
           <small>
-            JPG or PNG · automatically compressed · max 1MB
+            JPG, PNG, or WebP · automatically compressed · max 1MB
           </small>
 
           @if (imageMessage()) {
@@ -103,6 +103,7 @@ import { Role } from '../../../core/models';
               class="image-message"
               [class.error]="imageError()"
               [class.success]="!imageError()"
+              role="status"
             >
               {{ imageMessage() }}
             </div>
@@ -507,6 +508,7 @@ export class ProfilePageComponent {
   private readonly auth = inject(AuthStore);
 
   private readonly fb = inject(FormBuilder);
+  private readonly media = inject(MediaService);
 
   protected readonly form = this.fb.nonNullable.group({
 
@@ -566,6 +568,8 @@ export class ProfilePageComponent {
   protected readonly previewUrl = signal<string | null>(null);
 
   protected readonly uploadingImage = signal(false);
+
+  protected readonly uploadProgress = signal(0);
 
   protected readonly imageMessage = signal('');
 
@@ -722,16 +726,14 @@ export class ProfilePageComponent {
     this.imageMessage.set('');
     this.imageError.set(false);
 
-    /*
-     * Only allow JPG and PNG.
-     */
     if (
       file.type !== 'image/jpeg' &&
-      file.type !== 'image/png'
+      file.type !== 'image/png' &&
+      file.type !== 'image/webp'
     ) {
 
       this.setImageError(
-        'Please select a JPG or PNG image.'
+        'Please select a JPG, PNG, or WebP image.'
       );
 
       input.value = '';
@@ -776,18 +778,14 @@ export class ProfilePageComponent {
 
     } catch (error) {
 
-      console.error(
-        'Profile image processing failed:',
-        error
-      );
-
       this.setImageError(
-        'Unable to process this image. Please try another image.'
+        this.imageUploadError(error)
       );
 
     } finally {
 
       this.uploadingImage.set(false);
+      this.uploadProgress.set(0);
 
       /*
        * Allow selecting the same file again.
@@ -1029,13 +1027,6 @@ export class ProfilePageComponent {
     );
   }
 
-  /**
-   * This is where the compressed image
-   * is currently prepared for upload.
-   *
-   * If your ProfileStore already has an
-   * uploadImage method, call it here.
-   */
   private async processImage(
     file: File
   ): Promise<void> {
@@ -1052,46 +1043,43 @@ export class ProfilePageComponent {
       return;
     }
 
-    /*
-     * Display compressed image immediately.
-     */
-    const url =
-      URL.createObjectURL(file);
-
-    const currentPreviewUrl = this.previewUrl();
-    if (currentPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(currentPreviewUrl);
-
-    this.previewUrl.set(url);
-
-    this.imageMessage.set(`Image ready: ${this.formatBytes(file.size)}`);
-
+    const previousPreview = this.previewUrl();
+    const localPreview = URL.createObjectURL(file);
+    this.previewUrl.set(localPreview);
+    this.imageMessage.set(`Uploading image · ${this.formatBytes(file.size)}`);
     this.imageError.set(false);
 
-    /*
-     * IMPORTANT:
-     *
-     * This is the compressed File that should
-     * be sent to Cloudinary/backend.
-     *
-     * If your ProfileStore has an image upload
-     * method, connect it here.
-     */
-    console.log(
-      'Compressed profile image:',
-      {
-        name: file.name,
-        type: file.type,
-        size: file.size
+    try {
+      const result = await firstValueFrom(
+        this.media.upload(file, 'profile').pipe(
+          tap((update: UploadProgress) => this.uploadProgress.set(update.percent)),
+          filter((update): update is UploadProgress & { result: MediaUpload } => update.result !== undefined),
+          map(update => update.result)
+        )
+      );
+      if (!result.user) {
+        throw new Error('The server did not return the updated profile.');
       }
-    );
 
-    /*
-     * If your existing ProfileStore supports:
-     *
-     * this.profile.uploadAvatar(file, user => ...)
-     *
-     * put that call here.
-     */
+      this.auth.updateUser(result.user);
+      this.previewUrl.set(result.url);
+      URL.revokeObjectURL(localPreview);
+      this.imageMessage.set('Profile picture uploaded successfully.');
+    } catch (error) {
+      URL.revokeObjectURL(localPreview);
+      this.previewUrl.set(previousPreview);
+      throw error;
+    }
+  }
+
+  private imageUploadError(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) return 'Could not reach the server. Check that the backend is running and try again.';
+      if (typeof error.error?.message === 'string') return error.error.message;
+      if (error.status === 401) return 'Your session has expired. Sign in again and retry the upload.';
+      return 'The image upload failed. Please try again.';
+    }
+    return error instanceof Error ? error.message : 'Unable to process this image. Please try another image.';
   }
 
   private setImageError(

@@ -19,6 +19,9 @@ services:
   backend:
     build:
       context: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
     restart: unless-stopped
     depends_on:
       postgres:
@@ -28,7 +31,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/jhub_africa_vault?schema=public
       JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-before-production}
       JWT_EXPIRES_IN: 1d
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:4300}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:4200}
       PORT: 3000
     ports:
       - "3000:3000"

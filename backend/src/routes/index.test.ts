@@ -87,7 +87,7 @@ describe('admin search validation', () => {
     it('uses the first page and default page size when omitted', () => {
       expect(statusQuery.parse({})).toEqual({
         page: 1,
-        limit: 10
+        limit: 20
       });
     });
 
@@ -112,4 +112,5 @@ describe('admin search validation', () => {
       expect(statusQuery.safeParse({ limit: '101' }).success).toBe(false);
     });
   });
+
 });

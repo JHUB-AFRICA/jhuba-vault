@@ -4,6 +4,13 @@ import { Role } from './core/models';
 
 export const routes: Routes = [
   {
+    path: '',
+    pathMatch: 'full',
+    title: 'JHUB Africa Vault',
+    loadComponent: () => import('./features/landing/pages/landing-page.component').then(module => module.LandingPageComponent)
+  },
+  { path: 'landing', redirectTo: '', pathMatch: 'full' },
+  {
     path: 'auth/login',
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/pages/auth-page.component').then(module => module.AuthPageComponent)
@@ -57,6 +64,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/requests/pages/workspace-page.component').then(module => module.WorkspacePageComponent)
   },
   {
+    path: 'app/requests/project',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/workspace-page.component').then(module => module.WorkspacePageComponent)
+  },
+  {
+    path: 'app/requests/team',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/requests/pages/workspace-page.component').then(module => module.WorkspacePageComponent)
+  },
+  {
     path: 'app/requests/submitted',
     canActivate: [authGuard],
     loadComponent: () => import('./features/requests/pages/request-submitted-page.component').then(module => module.RequestSubmittedPageComponent)
@@ -69,6 +86,7 @@ export const routes: Routes = [
   {
     path: 'app/loans',
     canActivate: [authGuard],
+    data: { view: 'loans' },
     loadComponent: () => import('./features/requests/pages/request-history-page.component').then(module => module.RequestHistoryPageComponent)
   },
   {
@@ -99,7 +117,7 @@ export const routes: Routes = [
   {
     path: 'admin/assets',
     canActivate: [authGuard, roleGuard(Role.ADMIN)],
-    loadComponent: () => import('./features/admin/pages/admin-page.component').then(module => module.AdminPageComponent)
+    loadComponent: () => import('./features/admin/pages/admin-assets-page.component').then(module => module.AdminAssetsPageComponent)
   },
   {
     path: 'admin/inventory',
@@ -114,7 +132,7 @@ export const routes: Routes = [
   {
     path: 'admin/audit-log',
     canActivate: [authGuard, roleGuard(Role.ADMIN)],
-    loadComponent: () => import('./features/admin/pages/admin-page.component').then(module => module.AdminPageComponent)
+    loadComponent: () => import('./features/admin/pages/admin-audit-page.component').then(module => module.AdminAuditPageComponent)
   },
   {
     path: 'admin/settings',
