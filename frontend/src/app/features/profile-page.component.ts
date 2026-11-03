@@ -12,7 +12,8 @@ import {
   Validators
 } from '@angular/forms';
 
-import { RouterLink } from '@angular/router';
+import { PageHeaderComponent } from '../shared/page-header.component';
+import { MediaService } from '../core/media.service';
 
 import { ProfileStore } from '../state/profile.store';
 import { AuthStore } from '../state/auth.store';
@@ -22,8 +23,7 @@ import { MediaService, MediaUpload, UploadProgress } from '../core/media.service
 @Component({
   selector: 'jhub-profile-page',
   standalone: true,
-  styleUrls: ['./innovator-theme.component.css'],
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, PageHeaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
   template: `
@@ -512,6 +512,7 @@ export class ProfilePageComponent {
   private readonly media = inject(MediaService);
 
   private readonly fb = inject(FormBuilder);
+  private readonly media = inject(MediaService);
 
   protected readonly form = this.fb.nonNullable.group({
 
