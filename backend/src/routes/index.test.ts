@@ -112,4 +112,34 @@ describe('admin search validation', () => {
       expect(statusQuery.safeParse({ limit: '101' }).success).toBe(false);
     });
   });
+
+  describe('request status and pagination validation', () => {
+    it('uses the first page and default page size when omitted', () => {
+      expect(statusQuery.parse({})).toEqual({
+        page: 1,
+        limit: 10
+      });
+    });
+
+    it('accepts valid request statuses and bounded pagination', () => {
+      expect(statusQuery.safeParse({
+        status: 'PENDING',
+        page: '2',
+        limit: '50'
+      })).toMatchObject({
+        success: true,
+        data: {
+          status: 'PENDING',
+          page: 2,
+          limit: 50
+        }
+      });
+    });
+
+    it('rejects invalid statuses and pagination outside the supported range', () => {
+      expect(statusQuery.safeParse({ status: 'ACTIVE' }).success).toBe(false);
+      expect(statusQuery.safeParse({ page: '0' }).success).toBe(false);
+      expect(statusQuery.safeParse({ limit: '101' }).success).toBe(false);
+    });
+  });
 });

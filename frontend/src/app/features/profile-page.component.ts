@@ -3,6 +3,8 @@ import {
   Component,
   inject
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { filter, firstValueFrom, map, tap } from 'rxjs';
 
 import {
   FormBuilder,
@@ -16,20 +18,498 @@ import { MediaService } from '../core/media.service';
 import { ProfileStore } from '../state/profile.store';
 import { AuthStore } from '../state/auth.store';
 import { Role } from '../core/models';
+import { MediaService, MediaUpload, UploadProgress } from '../core/media.service';
 
 @Component({
   selector: 'jhub-profile-page',
   standalone: true,
   imports: [ReactiveFormsModule, PageHeaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './profile-page.component.html',
-  styleUrl: './profile-page.component.css'
+
+  template: `
+    <main class="profile-page page-width">
+
+      <div class="profile-heading">
+        <div>
+          <p class="eyebrow">INNOVATOR PROFILE</p>
+
+          <h1>
+            Your bio-data,
+            <em>your story.</em>
+          </h1>
+
+          <p>
+            Keep your information current so project and loan records stay accountable.
+          </p>
+        </div>
+
+        <a class="arrow-link" routerLink="/app/settings">
+          Settings ↗
+        </a>
+      </div>
+
+      @if (profile.success()) {
+        <div class="notice success" role="status">
+          {{ profile.success() }}
+        </div>
+      }
+
+      @if (profile.error()) {
+        <div class="notice error" role="alert">
+          {{ profile.error() }}
+        </div>
+      }
+
+      <section class="profile-layout">
+
+        <!-- PROFILE IMAGE -->
+        <div class="avatar-card">
+
+          @if (previewUrl) {
+            <img
+              class="avatar-image"
+              [src]="previewUrl"
+              alt="Profile picture"
+            />
+          } @else {
+            <div class="avatar">
+              {{ initials() }}
+            </div>
+          }
+
+          <h2>
+            {{ form.controls.fullName.value || 'Your name' }}
+          </h2>
+
+          <p>
+            {{ form.controls.email.value }}
+          </p>
+
+          <label class="upload-button">
+            {{ uploadingImage ? 'Uploading ' + uploadProgress + '%' : 'Change profile picture' }}
+
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              [disabled]="uploadingImage"
+              (change)="upload($event)"
+            />
+          </label>
+
+          <small>
+            JPG, PNG, or WebP · automatically compressed · max 1MB
+          </small>
+
+          @if (imageMessage) {
+            <div
+              class="image-message"
+              [class.error]="imageError"
+              [class.success]="!imageError"
+              role="status"
+            >
+              {{ imageMessage }}
+            </div>
+          }
+
+        </div>
+
+        <!-- PROFILE FORM -->
+        <form
+          class="profile-form"
+          [formGroup]="form"
+          (ngSubmit)="save()"
+        >
+
+          <div class="form-grid">
+
+            <label>
+              Full name
+
+              <input formControlName="fullName">
+
+              @if (invalid('fullName')) {
+                <small>Full name is required.</small>
+              }
+            </label>
+
+            <label>
+              Official email
+
+              <input
+                type="email"
+                formControlName="email"
+              >
+
+              @if (invalid('email')) {
+                <small>Enter a valid email.</small>
+              }
+            </label>
+
+            <label>
+              Phone number
+
+              <div class="phone-input">
+                <span class="country-code">+254</span>
+                <input
+                  type="tel"
+                  formControlName="phoneNumber"
+                  placeholder="712345678"
+                  maxlength="9"
+                  inputmode="numeric"
+                  autocomplete="tel-national"
+                >
+              </div>
+
+              @if (invalid('phoneNumber')) {
+                <small>
+                  Enter a valid Kenyan phone number (e.g. 712345678). Do not include the leading 0.
+                </small>
+              }
+            </label>
+
+            <label>
+              Identification / student number
+
+              <input formControlName="identificationId">
+            </label>
+
+            <label>
+              Department / track
+
+              <input formControlName="department">
+            </label>
+
+            <label>
+              Primary role
+
+              <input formControlName="primaryRole">
+            </label>
+
+          </div>
+
+          <label>
+            Bio / skill summary
+
+            <textarea
+              rows="5"
+              formControlName="bio"
+              placeholder="Tell the JHUB community what you are working on."
+            ></textarea>
+          </label>
+
+          <label>
+            GitHub / portfolio URL
+
+            <input
+              type="url"
+              formControlName="githubUrl"
+              placeholder="https://"
+            >
+          </label>
+
+          <div class="form-actions">
+
+            <button
+              type="button"
+              class="secondary-button"
+              (click)="cancel()"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              class="primary-button"
+              [disabled]="profile.saving()"
+            >
+              {{ profile.saving() ? 'Saving…' : 'Save profile' }}
+              <span>→</span>
+            </button>
+
+          </div>
+
+        </form>
+
+      </section>
+
+    </main>
+  `,
+
+  styles: [`
+    :host {
+      display: block;
+    }
+
+    .profile-page {
+      padding: 65px 0 110px;
+    }
+
+    .profile-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      margin-bottom: 35px;
+    }
+
+    .eyebrow {
+      color: #3ea945;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      margin: 0 0 18px;
+    }
+
+    .profile-heading h1 {
+      font: 400 clamp(40px, 5vw, 58px)/1.05 Georgia, serif;
+      color: #262571;
+      margin: 0;
+    }
+
+    .profile-heading h1 em {
+      color: #3ea945;
+    }
+
+    .profile-heading p:last-child {
+      color: #667083;
+      font-size: 13px;
+    }
+
+    .arrow-link {
+      color: #262571;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .profile-layout {
+      display: grid;
+      grid-template-columns: 270px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .avatar-card,
+    .profile-form {
+      background: #fff;
+      border: 1px solid #e6e8ee;
+      padding: 28px;
+    }
+
+    .avatar-card {
+      text-align: center;
+    }
+
+    .avatar {
+      width: 100px;
+      height: 100px;
+      display: grid;
+      place-items: center;
+      margin: 5px auto 18px;
+      background: #e5eafa;
+      color: #262571;
+      font: 38px Georgia, serif;
+      border-radius: 50%;
+    }
+
+    .avatar-image {
+      width: 100px;
+      height: 100px;
+      display: block;
+      object-fit: cover;
+      margin: 5px auto 18px;
+      border-radius: 50%;
+      border: 3px solid #e5eafa;
+    }
+
+    .avatar-card h2 {
+      font: 24px Georgia, serif;
+      color: #262571;
+      margin: 0;
+    }
+
+    .avatar-card p {
+      font-size: 11px;
+      color: #7c8492;
+      word-break: break-word;
+    }
+
+    .upload-button {
+      display: block;
+      border: 1px solid #dce0e8;
+      padding: 11px 8px;
+      color: #262571;
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 22px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .upload-button:hover {
+      border-color: #3ea945;
+      background: #f7fff7;
+    }
+
+    .upload-button input {
+      display: none;
+    }
+
+    .avatar-card > small {
+      display: block;
+      color: #9aa1ad;
+      font-size: 9px;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+
+    .image-message {
+      margin-top: 12px;
+      padding: 9px;
+      font-size: 10px;
+      line-height: 1.4;
+      text-align: left;
+    }
+
+    .image-message.error {
+      color: #a51f20;
+      background: #fff0f0;
+      border-left: 3px solid #e6292a;
+    }
+
+    .image-message.success {
+      color: #26742b;
+      background: #f0fff1;
+      border-left: 3px solid #3ea945;
+    }
+
+    .profile-form {
+      display: grid;
+      gap: 18px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .profile-form label {
+      display: block;
+      color: #586174;
+      font-size: 11px;
+    }
+
+    .profile-form input,
+    .profile-form textarea {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #dce0e8;
+      margin-top: 7px;
+      padding: 12px;
+      outline-color: #3ea945;
+      resize: vertical;
+    }
+
+    .profile-form input:focus,
+    .profile-form textarea:focus {
+      border-color: #3ea945;
+    }
+
+    .phone-input {
+      display: flex;
+      align-items: stretch;
+      margin-top: 7px;
+    }
+
+    .phone-input .country-code {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid #dce0e8;
+      border-right: 0;
+      background: #f7f8fb;
+      color: #586174;
+    }
+
+    .phone-input input {
+      flex: 1;
+      min-width: 0;
+      margin-top: 0;
+    }
+
+    .profile-form small {
+      display: block;
+      color: #e6292a;
+      margin-top: 5px;
+      font-size: 10px;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .notice {
+      padding: 12px 15px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      background: #fff;
+    }
+
+    .notice.success {
+      border-left: 3px solid #3ea945;
+      color: #26742b;
+    }
+
+    .notice.error {
+      border-left: 3px solid #e6292a;
+      color: #a51f20;
+    }
+
+    @media (max-width: 760px) {
+
+      .profile-page {
+        padding-top: 45px;
+      }
+
+      .profile-heading {
+        display: block;
+      }
+
+      .profile-heading .arrow-link {
+        display: inline-block;
+        margin-top: 18px;
+      }
+
+      .profile-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .form-actions {
+        justify-content: stretch;
+      }
+
+      .form-actions button {
+        flex: 1;
+        justify-content: center;
+      }
+    }
+  `]
 })
 export class ProfilePageComponent {
 
   protected readonly profile = inject(ProfileStore);
 
   private readonly auth = inject(AuthStore);
+
+  private readonly media = inject(MediaService);
 
   private readonly fb = inject(FormBuilder);
   private readonly media = inject(MediaService);
@@ -92,6 +572,8 @@ export class ProfilePageComponent {
   protected previewUrl: string | null = null;
 
   protected uploadingImage = false;
+
+  protected uploadProgress = 0;
 
   protected imageMessage = '';
 
@@ -248,16 +730,14 @@ export class ProfilePageComponent {
     this.imageMessage = '';
     this.imageError = false;
 
-    /*
-     * Only allow JPG and PNG.
-     */
     if (
       file.type !== 'image/jpeg' &&
-      file.type !== 'image/png'
+      file.type !== 'image/png' &&
+      file.type !== 'image/webp'
     ) {
 
       this.setImageError(
-        'Please select a JPG or PNG image.'
+        'Please select a JPG, PNG, or WebP image.'
       );
 
       input.value = '';
@@ -302,18 +782,14 @@ export class ProfilePageComponent {
 
     } catch (error) {
 
-      console.error(
-        'Profile image processing failed:',
-        error
-      );
-
       this.setImageError(
-        'Unable to process this image. Please try another image.'
+        this.imageUploadError(error)
       );
 
     } finally {
 
       this.uploadingImage = false;
+      this.uploadProgress = 0;
 
       /*
        * Allow selecting the same file again.
@@ -555,13 +1031,6 @@ export class ProfilePageComponent {
     );
   }
 
-  /**
-   * This is where the compressed image
-   * is currently prepared for upload.
-   *
-   * If your ProfileStore already has an
-   * uploadImage method, call it here.
-   */
   private async processImage(
     file: File
   ): Promise<void> {
@@ -578,52 +1047,43 @@ export class ProfilePageComponent {
       return;
     }
 
-    /*
-     * Display compressed image immediately.
-     */
-    const url =
-      URL.createObjectURL(file);
-
-    if (this.previewUrl?.startsWith('blob:')) {
-      URL.revokeObjectURL(
-        this.previewUrl
-      );
-    }
-
-    this.previewUrl = url;
-
-    this.imageMessage = `Uploading photo (${this.formatBytes(file.size)})…`;
-
+    const previousPreview = this.previewUrl;
+    const localPreview = URL.createObjectURL(file);
+    this.previewUrl = localPreview;
+    this.imageMessage = `Uploading image · ${this.formatBytes(file.size)}`;
     this.imageError = false;
 
-    /*
-     * IMPORTANT:
-     *
-     * This is the compressed File that should
-     * be sent to Cloudinary/backend.
-     *
-     * If your ProfileStore has an image upload
-     * method, connect it here.
-     */
-    const current = this.auth.user();
-    this.media.upload(file, 'profile').subscribe({
-      next: update => {
-        if (update.result?.url && current) {
-          this.auth.updateUser({ ...current, avatarUrl: update.result.url });
-          this.imageMessage = 'Profile photo updated.';
-          this.imageError = false;
-        }
-      },
-      error: () => this.setImageError('We couldn’t upload your photo. Please try again.')
-    });
+    try {
+      const result = await firstValueFrom(
+        this.media.upload(file, 'profile').pipe(
+          tap((update: UploadProgress) => this.uploadProgress = update.percent),
+          filter((update): update is UploadProgress & { result: MediaUpload } => update.result !== undefined),
+          map(update => update.result)
+        )
+      );
+      if (!result.user) {
+        throw new Error('The server did not return the updated profile.');
+      }
 
-    /*
-     * If your existing ProfileStore supports:
-     *
-     * this.profile.uploadAvatar(file, user => ...)
-     *
-     * put that call here.
-     */
+      this.auth.updateUser(result.user);
+      this.previewUrl = result.url;
+      URL.revokeObjectURL(localPreview);
+      this.imageMessage = 'Profile picture uploaded successfully.';
+    } catch (error) {
+      URL.revokeObjectURL(localPreview);
+      this.previewUrl = previousPreview;
+      throw error;
+    }
+  }
+
+  private imageUploadError(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) return 'Could not reach the server. Check that the backend is running and try again.';
+      if (typeof error.error?.message === 'string') return error.error.message;
+      if (error.status === 401) return 'Your session has expired. Sign in again and retry the upload.';
+      return 'The image upload failed. Please try again.';
+    }
+    return error instanceof Error ? error.message : 'Unable to process this image. Please try another image.';
   }
 
   private setImageError(

@@ -58,7 +58,7 @@ npm run build
 Frontend runs on:
 
 ```text
-http://localhost:4300
+http://localhost:4200
 ```
 
 ---
@@ -95,12 +95,19 @@ docker compose up --build
 
 The API waits for PostgreSQL to become healthy and applies pending Prisma
 migrations before starting. It is available at `http://localhost:3000/api`;
-the health endpoint is `http://localhost:3000/api/health`. The frontend's
-development proxy can connect to this API at `http://localhost:4300`.
+the health endpoint is `http://localhost:3000/api/health`. The frontend
+development server runs at `http://localhost:4200` and proxies `/api` requests
+to the backend.
 
 The Compose JWT secret default is for local development only. Set `JWT_SECRET`
 in the shell or a root `.env` file to a strong secret before using the stack
 outside local development.
+
+For Cloudinary image uploads, create `backend/.env` and set
+`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`.
+Compose optionally passes this ignored local file to the backend container.
+Never put Cloudinary credentials in frontend code or commit an environment
+file.
 
 Stop the services with `docker compose down`. Add `--volumes` only when you
 intend to delete the persisted PostgreSQL data.
