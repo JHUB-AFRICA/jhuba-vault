@@ -173,5 +173,3 @@ manual-review row against the source register and existing inventory before
 trying to import those rows.
 
 ---
-
-## Environment 

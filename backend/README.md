@@ -36,5 +36,5 @@ npx prisma migrate status
 
 Cloudinary image uploads accept JPEG, PNG, and WebP files up to 5 MB. Profile
 images are associated with the authenticated user; asset images are available
-to administrators. The API never returns password hashes or Cloudinary
-credentials.
+to administrators. Cloudinary and mail integrations are environment-driven.
+The API never returns password hashes or integration credentials.
