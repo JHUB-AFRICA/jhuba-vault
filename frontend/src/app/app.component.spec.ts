@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { Asset, AssetCategory } from './core/models';
-import { LandingPageComponent } from './features/landing-page.component';
+import { LandingPageComponent } from './features/landing/pages/landing-page.component';
 
 function makeAsset(id: string, overrides: Partial<Asset> = {}): Asset {
   return {
