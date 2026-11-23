@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpEvent, HttpParams } from '@angular/common/http';
-import { EMPTY, expand, map, Observable, reduce } from 'rxjs';
+import { EMPTY, expand, map, Observable, reduce, catchError, shareReplay, tap, throwError } from 'rxjs';
 import { Asset, AssetCategory, AssetRequest, AuditLog, RequestStatus, TeamMember, User } from './models';
 
 const API_URL = typeof window === 'undefined' || window.location.port === '4000'
@@ -48,6 +48,7 @@ export interface AuthResponse { user: User; }
 export interface HealthStatus { status: 'ok'; service: string; }
 export interface AdminRequestCounts extends Record<RequestStatus, number> { total: number; }
 export interface AdminRequestPage { items: AssetRequest[]; page: number; limit: number; total: number; totalPages: number; statusCounts?: AdminRequestCounts; }
+export interface AssetPage { items: Asset[]; page: number; limit: number; total: number; totalPages: number; }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -79,6 +80,13 @@ export class AssetService {
     if (filters?.availability) params = params.set('availability', filters.availability);
     return this.http.get<ApiResponse<Asset[]>>(`${API_URL}/assets`, { params }).pipe(map(response => response.data));
   }
+  listPage(filters?: { search?: string; category?: AssetCategory; availability?: string; page?: number; limit?: number }): Observable<AssetPage> {
+    let params = new HttpParams().set('page', filters?.page ?? 1).set('limit', filters?.limit ?? 20);
+    if (filters?.search) params = params.set('search', filters.search);
+    if (filters?.category) params = params.set('category', filters.category);
+    if (filters?.availability) params = params.set('availability', filters.availability);
+    return this.http.get<ApiResponse<AssetPage>>(`${API_URL}/assets`, { params }).pipe(map(response => response.data));
+  }
   getById(id: string): Observable<Asset> { return this.http.get<ApiResponse<Asset>>(`${API_URL}/assets/${id}`).pipe(map(response => response.data)); }
   create(asset: Omit<Asset, 'id' | 'createdAt' | 'updatedAt' | 'imagePublicId'>): Observable<Asset> { return this.http.post<ApiResponse<Asset>>(`${API_URL}/assets`, asset).pipe(map(response => response.data)); }
   update(id: string, asset: Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt' | 'imagePublicId'>>): Observable<Asset> { return this.http.patch<ApiResponse<Asset>>(`${API_URL}/assets/${id}`, asset).pipe(map(response => response.data)); }
@@ -88,29 +96,38 @@ export class AssetService {
 @Injectable({ providedIn: 'root' })
 export class RequestService {
   private readonly http = inject(HttpClient);
+  private mineCache$: Observable<AssetRequest[]> | null = null;
   listMine(limit?: number): Observable<AssetRequest[]> {
     const params = limit ? new HttpParams().set('limit', limit) : undefined;
     return this.http.get<ApiResponse<{ items: AssetRequest[] }>>(`${API_URL}/requests`, { params }).pipe(map(response => response.data.items));
   }
-  listAllMine(limit = 100): Observable<AssetRequest[]> {
+  listAllMine(limit = 20): Observable<AssetRequest[]> {
+    if (this.mineCache$) return this.mineCache$;
     const loadPage = (page: number) => this.http.get<ApiResponse<{ items: AssetRequest[]; page: number; totalPages: number }>>(
       `${API_URL}/requests`,
       { params: new HttpParams().set('page', page).set('limit', limit) }
     );
-    return loadPage(1).pipe(
+    this.mineCache$ = loadPage(1).pipe(
       expand(response => response.data.page < response.data.totalPages ? loadPage(response.data.page + 1) : EMPTY),
       map(response => response.data.items),
-      reduce((allRequests, pageRequests) => [...allRequests, ...pageRequests], [] as AssetRequest[])
+      reduce((allRequests, pageRequests) => [...allRequests, ...pageRequests], [] as AssetRequest[]),
+      tap({ error: () => { this.mineCache$ = null; } }),
+      catchError(error => {
+        this.mineCache$ = null;
+        return throwError(() => error);
+      }),
+      shareReplay({ bufferSize: 1, refCount: false })
     );
+    return this.mineCache$;
   }
   getById(id: string): Observable<AssetRequest> { return this.http.get<ApiResponse<AssetRequest>>(`${API_URL}/requests/${id}`).pipe(map(response => response.data)); }
-  create(request: { projectName: string; projectAbstract: string; loanDays: number; startDate: string; items: Array<{ assetId: string; quantity: number }>; teamMembers: Array<Omit<TeamMember, 'id' | 'requestId' | 'name' | 'role'>> }): Observable<AssetRequest> { return this.http.post<ApiResponse<AssetRequest>>(`${API_URL}/requests`, request).pipe(map(response => response.data)); }
-  createAdmin(request: { innovatorId: string; projectName: string; projectAbstract: string; loanDays: number; startDate: string; items: Array<{ assetId: string; quantity: number }>; teamMembers: Array<Omit<TeamMember, 'id' | 'requestId' | 'name' | 'role'>> }): Observable<AssetRequest> { return this.http.post<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests`, request).pipe(map(response => response.data)); }
-  update(id: string, request: Partial<AssetRequest>): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/requests/${id}`, request).pipe(map(response => response.data)); }
-  approve(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/approve`, {}).pipe(map(response => response.data)); }
-  reject(id: string, rejectionReason: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/reject`, { rejectionReason }).pipe(map(response => response.data)); }
-  checkout(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/checkout`, {}).pipe(map(response => response.data)); }
-  returnAsset(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/return`, {}).pipe(map(response => response.data)); }
+  create(request: { projectName: string; projectAbstract: string; loanDays: number; startDate: string; items: Array<{ assetId: string; quantity: number }>; teamMembers: Array<Omit<TeamMember, 'id' | 'requestId' | 'name' | 'role'>> }): Observable<AssetRequest> { return this.http.post<ApiResponse<AssetRequest>>(`${API_URL}/requests`, request).pipe(map(response => response.data), tap(() => { this.mineCache$ = null; })); }
+  createAdmin(request: { innovatorId: string; projectName: string; projectAbstract: string; loanDays: number; startDate: string; items: Array<{ assetId: string; quantity: number }>; teamMembers: Array<Omit<TeamMember, 'id' | 'requestId' | 'name' | 'role'>> }): Observable<AssetRequest> { return this.http.post<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests`, request).pipe(map(response => response.data), tap(() => { this.mineCache$ = null; })); }
+  update(id: string, request: Partial<AssetRequest>): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/requests/${id}`, request).pipe(map(response => response.data), tap(() => { this.mineCache$ = null; })); }
+  approve(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/approve`, {}).pipe(map(response => response.data), tap(() => { this.mineCache$ = null; })); }
+  reject(id: string, rejectionReason: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/reject`, { rejectionReason }).pipe(map(response => response.data), tap(() => { this.mineCache$ = null; })); }
+  checkout(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/checkout`, {}).pipe(map(response => response.data), tap(() => { this.mineCache$ = null; })); }
+  returnAsset(id: string): Observable<AssetRequest> { return this.http.patch<ApiResponse<AssetRequest>>(`${API_URL}/admin/requests/${id}/return`, {}).pipe(map(response => response.data), tap(() => { this.mineCache$ = null; })); }
   listAdmin(filters?: { search?: string; status?: string }): Observable<AssetRequest[]> { return this.listAdminPage(filters).pipe(map(response => response.items)); }
   listAdminPage(filters?: { search?: string; status?: string; page?: number; limit?: number; dateFrom?: string; dateTo?: string }): Observable<AdminRequestPage> {
     let params = new HttpParams();

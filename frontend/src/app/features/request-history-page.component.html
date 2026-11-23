@@ -5,6 +5,40 @@
   <a class="btn btn-primary" routerLink="/catalogue"><i class="pi pi-plus" aria-hidden="true"></i> New request</a>
 </jhub-page-header>
 
+@if (loansView && awaitingCollection().length) {
+  <section class="card" aria-labelledby="awaiting-collection-title">
+    <div class="card-head">
+      <h2 id="awaiting-collection-title" class="card-title">Awaiting collection</h2>
+      <span class="count">{{ awaitingCollection().length }}</span>
+    </div>
+    <p class="card-body muted">These approved requests become active loans after an administrator confirms physical handover.</p>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Project</th><th>Items</th><th>Due</th><th>Status</th></tr></thead>
+        <tbody>
+          @for (request of awaitingCollection(); track request.id) {
+            <tr>
+              <td><a class="cell-title" [routerLink]="['/app/requests', request.id]">{{ request.projectName }}</a><span class="cell-sub">{{ request.id | reqRef }}</span></td>
+              <td>
+                @if (loansView) {
+                  @for (item of request.requestItems; track item.id || item.assetId) {
+                    <span class="cell-title">{{ item.asset.name }} × {{ item.quantity }}</span>
+                    <span class="cell-sub">{{ item.asset.assetTag }} · {{ item.asset.id }}</span>
+                  }
+                } @else {
+                  <span class="cell-clamp">{{ itemSummary(request) }}</span>
+                }
+              </td>
+              <td class="nowrap">{{ request.expectedReturn | date: 'd MMM y' }}</td>
+              <td><jhub-status [status]="request.status" /></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}
+
 <section class="card">
   @if (loading()) {
     <div class="loading-state" role="status"><span class="spinner"></span> Loading…</div>
@@ -39,8 +73,10 @@
         <thead>
           <tr>
             <th>Project</th>
+            @if (loansView) { <th>Borrower</th> }
             <th>Items</th>
-            <th>{{ loansView ? 'Expected return' : 'Submitted' }}</th>
+            <th>{{ loansView ? 'Collected' : 'Submitted' }}</th>
+            @if (loansView) { <th>Due</th> }
             <th>Status</th>
             <th><span class="sr-only">Open</span></th>
           </tr>
@@ -52,13 +88,24 @@
                 <a class="cell-title stretched" [routerLink]="['/app/requests', request.id]">{{ request.projectName }}</a>
                 <span class="cell-sub">{{ request.id | reqRef }}</span>
               </td>
-              <td><span class="cell-clamp">{{ itemSummary(request) }}</span></td>
-              <td class="nowrap">{{ (loansView ? request.expectedReturn : request.createdAt) | date: 'd MMM y' }}</td>
+              @if (loansView) { <td>{{ request.innovator?.fullName || 'You' }}</td> }
+              <td>
+                @if (loansView) {
+                  @for (item of request.requestItems; track item.id || item.assetId) {
+                    <span class="cell-title">{{ item.asset.name }} × {{ item.quantity }}</span>
+                    <span class="cell-sub">{{ item.asset.assetTag }} · {{ item.asset.id }}</span>
+                  }
+                } @else {
+                  <span class="cell-clamp">{{ itemSummary(request) }}</span>
+                }
+              </td>
+              <td class="nowrap">{{ (loansView ? (request.checkedOutAt || request.updatedAt) : request.createdAt) | date: 'd MMM y' }}</td>
+              @if (loansView) { <td class="nowrap">{{ request.expectedReturn | date: 'd MMM y' }}</td> }
               <td><jhub-status [status]="request.status" /></td>
               <td class="chevron"><i class="pi pi-chevron-right" aria-hidden="true"></i></td>
             </tr>
           } @empty {
-            <tr><td colspan="5"><jhub-empty icon="pi-filter" title="Nothing with this status" text="Choose another status to see more." /></td></tr>
+            <tr><td [attr.colspan]="loansView ? 7 : 5"><jhub-empty icon="pi-filter" title="Nothing with this status" text="Choose another status to see more." /></td></tr>
           }
         </tbody>
       </table>

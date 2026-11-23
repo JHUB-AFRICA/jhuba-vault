@@ -35,6 +35,14 @@ export const assetSchema = z.object({
   path: ['availableQty']
 });
 
+export const assetQuery = z.object({
+  search: z.string().trim().max(100).optional(),
+  category: z.nativeEnum(AssetCategory).optional(),
+  availability: z.enum(['IN_STOCK', 'CHECKED_OUT']).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(10)
+});
+
 export const requestSchema = z.object({
   projectName: z.string().trim().min(1).max(120),
   projectAbstract: z.string().trim().min(20).max(5000),
@@ -68,7 +76,7 @@ export const rejectSchema = z.object({
 export const statusQuery = z.object({
   status: z.nativeEnum(RequestStatus).optional(),
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20)
+  limit: z.coerce.number().int().min(1).max(100).default(10)
 });
 
 export const adminRequestQuery = statusQuery.extend({

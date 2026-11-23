@@ -70,7 +70,7 @@ export class AdminInventoryPageComponent {
   protected readonly outOfStockCount = computed(() => this.store.assets().filter(asset => asset.availableQty === 0).length);
 
   constructor() {
-    this.store.load();
+    this.store.load(true);
   }
 
   protected categoryLabel(category: AssetCategory): string {
@@ -162,7 +162,7 @@ export class AdminInventoryPageComponent {
         this.dialogMode.set(null);
         this.toast.success(editingId ? 'Inventory item updated.' : 'Inventory item added.');
         this.editingId.set(null);
-        this.store.load();
+        this.store.load(true);
       },
       error: error => {
         this.saving.set(false);
@@ -182,7 +182,7 @@ export class AdminInventoryPageComponent {
     this.assetService.remove(asset.id).subscribe({
       next: () => {
         this.toast.success(`${asset.name} was deleted.`);
-        this.store.load();
+        this.store.load(true);
       },
       error: error => this.toast.error(error?.error?.message ?? 'This item may have request history. Mark it unavailable instead.', 'Couldn’t delete item')
     });

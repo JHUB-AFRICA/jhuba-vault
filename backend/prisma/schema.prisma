@@ -41,6 +41,9 @@ model Asset {
   updatedAt      DateTime      @updatedAt
   price          Decimal       @default(0) @db.Decimal(12, 2)
   requestItems   RequestItem[]
+
+  @@index([category])
+  @@index([availableQty])
 }
 
 model AssetRequest {
@@ -52,6 +55,7 @@ model AssetRequest {
   rejectionReason String?
   startDate       DateTime
   expectedReturn  DateTime
+  checkedOutAt    DateTime?
   actualReturn    DateTime?
   innovatorId     String
   createdAt       DateTime      @default(now())
@@ -61,6 +65,8 @@ model AssetRequest {
   teamMembers     TeamMember[]
 
   @@index([innovatorId, status])
+  @@index([status, createdAt])
+  @@index([createdAt])
 }
 
 model TeamMember {
@@ -72,6 +78,8 @@ model TeamMember {
   roleInProject String
   requestId     String
   request       AssetRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
 }
 
 model RequestItem {
@@ -83,6 +91,7 @@ model RequestItem {
   request   AssetRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@unique([requestId, assetId])
+  @@index([assetId])
 }
 
 model AuditLog {
@@ -96,6 +105,7 @@ model AuditLog {
   actor      User?    @relation(fields: [actorId], references: [id])
 
   @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 enum Role {

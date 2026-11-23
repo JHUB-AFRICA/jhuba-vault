@@ -35,6 +35,9 @@ export class RequestHistoryPageComponent {
       ? this.requests().filter(request => request.status === RequestStatus.CHECKED_OUT || request.status === RequestStatus.OVERDUE)
       : this.requests()
   );
+  protected readonly awaitingCollection = computed(() =>
+    this.loansView ? this.requests().filter(request => request.status === RequestStatus.APPROVED) : []
+  );
 
   protected readonly filters = computed(() => {
     const statuses = [RequestStatus.PENDING, RequestStatus.APPROVED, RequestStatus.CHECKED_OUT, RequestStatus.OVERDUE, RequestStatus.RETURNED, RequestStatus.REJECTED];

@@ -41,7 +41,7 @@
               <tr>
                 <td>
                   <div class="person">
-                    <span class="avatar">@if (user.avatarUrl) { <img [src]="user.avatarUrl" [alt]="user.fullName" /> } @else { {{ initials(user.fullName) }} }</span>
+                    <span class="avatar">@if (user.avatarUrl) { <img [src]="user.avatarUrl" [alt]="user.fullName" loading="lazy" decoding="async" width="40" height="40" /> } @else { {{ initials(user.fullName) }} }</span>
                     <span><span class="cell-title">{{ user.fullName }}</span><span class="cell-sub">{{ user.identificationId }}</span></span>
                   </div>
                 </td>

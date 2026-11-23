@@ -4,7 +4,7 @@
 
 <div class="stack" style="--gap: 20px">
   @if (store.error()) {
-    <div class="alert alert-danger" role="alert"><i class="pi pi-exclamation-circle" aria-hidden="true"></i><div class="alert-body">{{ store.error() }}</div><button type="button" class="alert-action btn btn-sm btn-danger-soft" (click)="store.load()">Try again</button></div>
+    <div class="alert alert-danger" role="alert"><i class="pi pi-exclamation-circle" aria-hidden="true"></i><div class="alert-body">{{ store.error() }}</div><button type="button" class="alert-action btn btn-sm btn-danger-soft" (click)="store.load(true)">Try again</button></div>
   }
 
   <section class="stat-grid" aria-label="Inventory summary">
@@ -48,7 +48,7 @@
               <tr>
                 <td>
                   <div class="person">
-                    <span class="thumb">@if (asset.imageUrl) { <img [src]="asset.imageUrl" [alt]="asset.name" /> } @else { <i class="pi" [class]="'pi ' + categoryIcon(asset.category)" aria-hidden="true"></i> }</span>
+                    <span class="thumb">@if (asset.imageUrl) { <img [src]="asset.imageUrl" [alt]="asset.name" loading="lazy" decoding="async" width="48" height="48" /> } @else { <i class="pi" [class]="'pi ' + categoryIcon(asset.category)" aria-hidden="true"></i> }</span>
                     <span class="item-copy"><span class="cell-title">{{ asset.name }}</span></span>
                   </div>
                 </td>

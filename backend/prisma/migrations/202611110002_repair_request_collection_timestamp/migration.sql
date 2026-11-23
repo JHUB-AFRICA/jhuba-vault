@@ -1,0 +1,2 @@
+ALTER TABLE "AssetRequest"
+ADD COLUMN IF NOT EXISTS "checkedOutAt" TIMESTAMP(3);

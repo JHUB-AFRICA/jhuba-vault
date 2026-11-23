@@ -11,22 +11,23 @@
           aria-label="Search assets"
           placeholder="Search by name, tag or specification"
           [ngModel]="assets.search()"
-          (ngModelChange)="assets.setSearch($event)"
+          (ngModelChange)="setSearch($event)"
         />
       </div>
       <div class="segmented" role="group" aria-label="Availability">
-        <button type="button" [attr.aria-pressed]="assets.availability() === 'ALL'" (click)="assets.setAvailability('ALL')">All</button>
-        <button type="button" [attr.aria-pressed]="assets.availability() === 'IN_STOCK'" (click)="assets.setAvailability('IN_STOCK')">In stock</button>
-        <button type="button" [attr.aria-pressed]="assets.availability() === 'CHECKED_OUT'" (click)="assets.setAvailability('CHECKED_OUT')">Checked out</button>
+        <button type="button" [attr.aria-pressed]="assets.availability() === 'ALL'" (click)="setAvailability('ALL')">All</button>
+        <button type="button" [attr.aria-pressed]="assets.availability() === 'IN_STOCK'" (click)="setAvailability('IN_STOCK')">In stock</button>
+        <button type="button" [attr.aria-pressed]="assets.availability() === 'CHECKED_OUT'" (click)="setAvailability('CHECKED_OUT')">Checked out</button>
       </div>
     </div>
 
     <div class="chips" role="group" aria-label="Category">
-      <button type="button" class="chip" [attr.aria-pressed]="assets.category() === 'ALL'" (click)="assets.setCategory('ALL')">
-        All categories <span class="count">{{ assets.assets().length }}</span>
+      <button type="button" class="chip" [attr.aria-pressed]="assets.category() === 'ALL'" (click)="setCategory('ALL')">
+        <i class="pi pi-th-large" aria-hidden="true"></i>
+        All Assets <span class="count">{{ assets.total() }}</span>
       </button>
       @for (category of categories; track category) {
-        <button type="button" class="chip" [attr.aria-pressed]="assets.category() === category" (click)="assets.setCategory(category)">
+        <button type="button" class="chip" [attr.aria-pressed]="assets.category() === category" (click)="setCategory(category)">
           <i class="pi" [class]="'pi ' + meta[category].icon" aria-hidden="true"></i>
           {{ meta[category].short }} <span class="count">{{ countIn(category) }}</span>
         </button>
@@ -50,23 +51,23 @@
   } @else if (assets.error()) {
     <div class="card">
       <jhub-empty icon="pi-exclamation-circle" tone="danger" title="We couldn’t load the catalogue" text="Check your connection and try again.">
-        <button type="button" class="btn btn-secondary" (click)="assets.load()">Try again</button>
+        <button type="button" class="btn btn-secondary" (click)="assets.load(true)">Try again</button>
       </jhub-empty>
     </div>
   } @else if (!assets.filteredAssets().length) {
     <div class="card">
       <jhub-empty
         icon="pi-search"
-        [title]="hasFilters() ? 'No assets match your filters' : 'The catalogue is empty'"
-        [text]="hasFilters() ? 'Try a different search term or clear the filters to see everything.' : 'Assets will appear here once the Vault administrators add them.'"
+        [title]="emptyTitle()"
+        [text]="emptyText()"
       >
-        @if (hasFilters()) { <button type="button" class="btn btn-secondary" (click)="assets.clearFilters()">Clear filters</button> }
+        @if (hasFilters()) { <button type="button" class="btn btn-secondary" (click)="clearFilters()">Clear filters</button> }
       </jhub-empty>
     </div>
   } @else {
     <p class="result-count" aria-live="polite">
-      Showing <strong>{{ assets.filteredAssets().length }}</strong> of {{ assets.assets().length }} assets
-      @if (hasFilters()) { <button type="button" class="link" (click)="assets.clearFilters()">Clear filters</button> }
+      Showing <strong>{{ assets.filteredAssets().length }}</strong> of {{ assets.total() }} assets
+      @if (hasFilters()) { <button type="button" class="link" (click)="clearFilters()">Clear filters</button> }
     </p>
 
     <div class="grid">
@@ -112,6 +113,15 @@
         </article>
       }
     </div>
+    @if (assets.paginated() && assets.totalPages() > 1) {
+      <footer class="pager">
+        <span>Page {{ assets.page() }} of {{ assets.totalPages() }}</span>
+        <div class="pager-controls">
+          <button type="button" class="pager-btn" [disabled]="assets.page() <= 1" (click)="goToPage(assets.page() - 1)" aria-label="Previous page"><i class="pi pi-angle-left" aria-hidden="true"></i></button>
+          <button type="button" class="pager-btn" [disabled]="assets.page() >= assets.totalPages()" (click)="goToPage(assets.page() + 1)" aria-label="Next page"><i class="pi pi-angle-right" aria-hidden="true"></i></button>
+        </div>
+      </footer>
+    }
   }
 </div>
 

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, HostListener, Input, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
@@ -109,7 +110,8 @@ export class GlobalSearchComponent {
               return of<AdminSearchResult[]>([]);
             })
           );
-        })
+        }),
+        takeUntilDestroyed()
       )
       .subscribe(results => {
         this.results.set(results);

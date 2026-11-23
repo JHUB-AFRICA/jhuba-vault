@@ -22,7 +22,7 @@ import { OverlayHostComponent } from './shared/overlay-host.component';
     <header class="topbar">
       <a class="brand" routerLink="/" aria-label="JHUB Africa Vault home"><jhub-brand-logo logo="jhub-africa" variant="header"></jhub-brand-logo><span><strong>AFRICA VAULT</strong><small>ASSET TRACKING</small></span></a>
       <button class="menu-toggle" type="button" aria-label="Toggle navigation" [attr.aria-expanded]="menuOpen()" (click)="menuOpen.update(open => !open)">☰</button>
-      <nav class="desktop-nav" [class.mobile-open]="menuOpen()" aria-label="Primary navigation" (click)="menuOpen.set(false)">@if (auth.user()?.role === Role.ADMIN) {<a routerLink="/admin/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a><a routerLink="/admin/requests" routerLinkActive="active">Requests</a><a routerLink="/admin/assets" routerLinkActive="active">Assets</a><a routerLink="/admin/inventory" routerLinkActive="active">Inventory</a><a routerLink="/admin/users" routerLinkActive="active">Users</a><a routerLink="/admin/audit-log" routerLinkActive="active">Audit Log</a><a routerLink="/admin/settings" routerLinkActive="active">Settings</a>} @else if (auth.user()) {<a routerLink="/app/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a><a routerLink="/catalogue" routerLinkActive="active">Catalogue</a><a routerLink="/app/requests" routerLinkActive="active">My Requests</a><a routerLink="/app/loans" routerLinkActive="active">Active Loans</a>} @else {<a routerLink="/catalogue" routerLinkActive="active">Catalogue</a><a href="#how-it-works">How it works</a><a href="#categories">Categories</a>}</nav>
+      <nav class="desktop-nav" [class.mobile-open]="menuOpen()" aria-label="Primary navigation" (click)="menuOpen.set(false)">@if (auth.user()?.role === Role.ADMIN) {<a routerLink="/admin/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a><a routerLink="/admin/requests" routerLinkActive="active">Requests</a><a routerLink="/admin/assets" routerLinkActive="active">Assets</a><a routerLink="/admin/inventory" routerLinkActive="active">Inventory</a><a routerLink="/admin/users" routerLinkActive="active">Users</a><a routerLink="/admin/audit-log" routerLinkActive="active">Audit Log</a><a routerLink="/admin/settings" routerLinkActive="active">Settings</a>} @else if (auth.user()) {<a routerLink="/app/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a><a routerLink="/catalogue" routerLinkActive="active">Catalogue</a><a routerLink="/app/requests" routerLinkActive="active">My Requests</a><a routerLink="/app/loans" routerLinkActive="active">Active Loans</a>} @else {<a routerLink="/catalogue" routerLinkActive="active">Catalogue</a><a href="#how-it-works">How it works</a><a href="#categories">Categories</a>}<div class="mobile-nav-actions">@if (auth.user()) {<a class="user-chip" [routerLink]="auth.isAdmin() ? '/admin/dashboard' : '/app/dashboard'">{{ auth.user()?.fullName }}</a><button class="text-button" type="button" (click)="auth.signOut()">Sign out</button>} @else {<a class="text-button" routerLink="/auth/login">Sign in</a><a class="primary-button compact" routerLink="/auth/register">Create account</a>}</div></nav>
       <div class="nav-actions">
         @if (auth.user()) { <a class="user-chip" [routerLink]="auth.isAdmin() ? '/admin/dashboard' : '/app/dashboard'">{{ auth.user()?.fullName }}</a><button class="text-button" type="button" (click)="auth.signOut()">Sign out</button> }
         @else { <a class="text-button" routerLink="/auth/login">Sign in</a><a class="primary-button compact" routerLink="/auth/register">Create account</a> }
@@ -38,11 +38,42 @@ import { OverlayHostComponent } from './shared/overlay-host.component';
         <section class="cta-band page-width"><div><p class="eyebrow">YOUR NEXT PROTOTYPE STARTS HERE</p><h2>What will you make<br>with the <em>Vault?</em></h2></div><a class="primary-button light-button" routerLink="/catalogue">Explore the catalogue <span>→</span></a></section>
       </main>
     } @else if (false && isCatalogue()) {  <main class="page-width catalogue-page"><div class="catalogue-intro"><div><p class="eyebrow">PUBLIC CATALOGUE</p><h1>Tools for the <em>work ahead.</em></h1><p>Explore the physical assets available to JHUB Africa innovators.</p></div><div class="search-box"><span>⌕</span><input aria-label="Search assets" placeholder="Search by name, tag or specification"></div></div><div class="filter-row"><button class="filter-active">All assets</button><button>IoT & prototyping</button><button>Computing</button><button>Networking</button><button>AV & presentation</button></div><div class="asset-grid">@for (asset of assets(); track asset.tag) {<article class="asset-card"><div class="asset-visual" [style.--accent]="asset.accent"><span>{{ asset.icon }}</span><small>{{ asset.category.replace('_', ' ') }}</small></div><div class="asset-info"><div><p class="asset-tag">{{ asset.tag }}</p><h3>{{ asset.name }}</h3></div><div class="asset-meta"><span class="stock"><i></i>{{ asset.available }} available</span><span>Tracked asset</span></div><a class="asset-link" [routerLink]="['/assets', asset.id]">View details <span>↗</span></a></div></article>}</div></main> }
-    @else if (isAuth()) { <main class="auth-page"><div class="auth-panel"><p class="eyebrow">JHUB AFRICA VAULT</p><h1>{{ isRegister() ? 'Make room for your next idea.' : 'Welcome back, innovator.' }}</h1><p>{{ isRegister() ? 'Create your innovator account to request and track JHUB assets.' : 'Sign in to manage your requests, loans, and profile.' }}</p><form (submit)="$event.preventDefault(); auth.signIn(isAdminLogin() ? Role.ADMIN : Role.INNOVATOR)"><label>Email address<input type="email" required placeholder="you@example.com"></label><label>Password<input type="password" required placeholder="Enter your password"></label>@if (isRegister()) {<label>Full name<input type="text" required placeholder="Your full name"></label>}<button class="primary-button submit-button" type="submit">{{ isRegister() ? 'Create innovator account' : 'Sign in' }} <span>→</span></button></form><p class="form-foot">Demo entry is wired to the typed auth store. Backend authentication connects at the service boundary.</p></div><div class="auth-aside"><span class="aside-mark">J</span><h2>Good tools make<br><em>bold work</em> possible.</h2></div></main> }
-    @else if (isAdmin()) { <main class="dashboard page-width"><div class="dashboard-head"><div><p class="eyebrow">ADMINISTRATION / OVERVIEW</p><h1>Good morning, <em>administrator.</em></h1></div><a class="primary-button" routerLink="/admin/requests">Review requests <span>→</span></a></div>@if (dashboardLoading()) { <div class="dashboard-state">Loading dashboard metrics…</div> } @else if (dashboardError()) { <div class="dashboard-state error" role="alert">{{ dashboardError() }}</div> } @else if (adminMetrics(); as metrics) { <div class="metric-grid"><div class="metric-card accent-blue"><small>PENDING REQUESTS</small><strong>{{ metrics.pendingRequests }}</strong><span>Awaiting review</span></div><div class="metric-card accent-green"><small>AVAILABLE INVENTORY</small><strong>{{ metrics.availableInventory }}</strong><span>Available units</span></div><div class="metric-card accent-red"><small>OVERDUE LOANS</small><strong>{{ metrics.overdueRequests }}</strong><span>Needs attention</span></div><div class="metric-card"><small>USERS</small><strong>{{ metrics.users }}</strong><span>Registered accounts</span></div><div class="metric-card"><small>TOTAL ASSETS</small><strong>{{ metrics.totalAssets }}</strong><span>Tracked records</span></div><div class="metric-card"><small>ASSETS ON LOAN</small><strong>{{ metrics.checkedOutRequests }}</strong><span>Checked out requests</span></div></div><div class="dashboard-lower"><section class="dashboard-section"><div class="section-heading compact-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Audit log</h2></div><a class="arrow-link" routerLink="/admin/audit-log">See all ↗</a></div>@if (auditLogs().length) { @for (log of auditLogs().slice(0, 3); track log.id) {<div class="request-row"><span class="request-avatar">{{ log.actor?.fullName?.slice(0, 2)?.toUpperCase() || 'SY' }}</span><div><strong>{{ log.action }}</strong><small>{{ log.actor?.fullName || 'System' }} · {{ log.entityType }}</small></div><span class="status approved">LOGGED</span></div>} } @else { <div class="dashboard-state">No audit activity recorded yet.</div> }</section><section class="quick-panel"><p class="eyebrow">QUICK ACCESS</p><a routerLink="/admin/assets"><span>▦</span>Manage assets <b>↗</b></a><a routerLink="/admin/inventory"><span>◫</span>View inventory <b>↗</b></a><a routerLink="/admin/users"><span>◎</span>Innovator directory <b>↗</b></a></section></div> }</main> }
-    @else if (isDashboardShell()) { <main class="dashboard page-width"><div class="dashboard-head"><div><p class="eyebrow">INNOVATOR WORKSPACE</p><h1>Your ideas, <em>in motion.</em></h1><p>Welcome back. Here is the pulse of your JHUB activity.</p></div><a class="primary-button" routerLink="/catalogue">Find assets <span>→</span></a></div>@if (dashboardLoading()) { <div class="dashboard-state">Loading dashboard metrics…</div> } @else if (dashboardError()) { <div class="dashboard-state error" role="alert">{{ dashboardError() }}</div> } @else { <div class="metric-grid"><div class="metric-card accent-blue"><small>ACTIVE REQUESTS</small><strong>{{ activeRequestCount() }}</strong><span>Pending or approved</span></div><div class="metric-card accent-green"><small>ACTIVE LOANS</small><strong>{{ activeLoanCount() }}</strong><span>Checked out or overdue</span></div><div class="metric-card"><small>RETURNED ASSETS</small><strong>{{ returnedRequestCount() }}</strong><span>Returned requests</span></div></div><section class="welcome-panel"><div><p class="eyebrow">KEEP BUILDING</p><h2>Have a new project<br>in mind?</h2><p>Find the components your team needs and start a request in a few minutes.</p><a class="arrow-link" routerLink="/catalogue">Browse the Vault ↗</a></div><span class="welcome-symbol">+</span></section> }</main> }
+    @else if (false && isAuth()) { <main class="auth-page"><div class="auth-panel"><p class="eyebrow">JHUB AFRICA VAULT</p><h1>{{ isRegister() ? 'Make room for your next idea.' : 'Welcome back, innovator.' }}</h1><p>{{ isRegister() ? 'Create your innovator account to request and track JHUB assets.' : 'Sign in to manage your requests, loans, and profile.' }}</p><form (submit)="$event.preventDefault(); auth.signIn(isAdminLogin() ? Role.ADMIN : Role.INNOVATOR)"><label>Email address<input type="email" required placeholder="you@example.com"></label><label>Password<input type="password" required placeholder="Enter your password"></label>@if (isRegister()) {<label>Full name<input type="text" required placeholder="Your full name"></label>}<button class="primary-button submit-button" type="submit">{{ isRegister() ? 'Create innovator account' : 'Sign in' }} <span>→</span></button></form><p class="form-foot">Demo entry is wired to the typed auth store. Backend authentication connects at the service boundary.</p></div><div class="auth-aside"><span class="aside-mark">J</span><h2>Good tools make<br><em>bold work</em> possible.</h2></div></main> }
+    @else if (false && isAdmin()) { <main class="dashboard page-width"><div class="dashboard-head"><div><p class="eyebrow">ADMINISTRATION / OVERVIEW</p><h1>Good morning, <em>administrator.</em></h1></div><a class="primary-button" routerLink="/admin/requests">Review requests <span>→</span></a></div>@if (dashboardLoading()) { <div class="dashboard-state">Loading dashboard metrics…</div> } @else if (dashboardError()) { <div class="dashboard-state error" role="alert">{{ dashboardError() }}</div> } @else if (adminMetrics(); as metrics) { <div class="metric-grid"><div class="metric-card accent-blue"><small>PENDING REQUESTS</small><strong>{{ metrics.pendingRequests }}</strong><span>Awaiting review</span></div><div class="metric-card accent-green"><small>AVAILABLE INVENTORY</small><strong>{{ metrics.availableInventory }}</strong><span>Available units</span></div><div class="metric-card accent-red"><small>OVERDUE LOANS</small><strong>{{ metrics.overdueRequests }}</strong><span>Needs attention</span></div><div class="metric-card"><small>USERS</small><strong>{{ metrics.users }}</strong><span>Registered accounts</span></div><div class="metric-card"><small>TOTAL ASSETS</small><strong>{{ metrics.totalAssets }}</strong><span>Tracked records</span></div><div class="metric-card"><small>ASSETS ON LOAN</small><strong>        {{ metrics.checkedOutInventory }}</strong><span>Checked out units</span></div></div><div class="dashboard-lower"><section class="dashboard-section"><div class="section-heading compact-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Audit log</h2></div><a class="arrow-link" routerLink="/admin/audit-log">See all ↗</a></div>@if (auditLogs().length) { @for (log of auditLogs().slice(0, 3); track log.id) {<div class="request-row"><span class="request-avatar">{{ log.actor?.fullName?.slice(0, 2)?.toUpperCase() || 'SY' }}</span><div><strong>{{ log.action }}</strong><small>{{ log.actor?.fullName || 'System' }} · {{ log.entityType }}</small></div><span class="status approved">LOGGED</span></div>} } @else { <div class="dashboard-state">No audit activity recorded yet.</div> }</section><section class="quick-panel"><p class="eyebrow">QUICK ACCESS</p><a routerLink="/admin/assets"><span>▦</span>Manage assets <b>↗</b></a><a routerLink="/admin/inventory"><span>◫</span>View inventory <b>↗</b></a><a routerLink="/admin/users"><span>◎</span>Innovator directory <b>↗</b></a></section></div> }</main> }
+    @else if (false && isDashboardShell()) { <main class="dashboard page-width"><div class="dashboard-head"><div><p class="eyebrow">INNOVATOR WORKSPACE</p><h1>Your ideas, <em>in motion.</em></h1><p>Welcome back. Here is the pulse of your JHUB activity.</p></div><a class="primary-button" routerLink="/catalogue">Find assets <span>→</span></a></div>@if (dashboardLoading()) { <div class="dashboard-state">Loading dashboard metrics…</div> } @else if (dashboardError()) { <div class="dashboard-state error" role="alert">{{ dashboardError() }}</div> } @else { <div class="metric-grid"><div class="metric-card accent-blue"><small>ACTIVE REQUESTS</small><strong>{{ activeRequestCount() }}</strong><span>Pending or approved</span></div><div class="metric-card accent-green"><small>ACTIVE LOANS</small><strong>{{ activeLoanCount() }}</strong><span>Checked out or overdue</span></div><div class="metric-card"><small>RETURNED ASSETS</small><strong>{{ returnedRequestCount() }}</strong><span>Returned requests</span></div></div><section class="welcome-panel"><div><p class="eyebrow">KEEP BUILDING</p><h2>Have a new project<br>in mind?</h2><p>Find the components your team needs and start a request in a few minutes.</p><a class="arrow-link" routerLink="/catalogue">Browse the Vault ↗</a></div><span class="welcome-symbol">+</span></section> }</main> }
     @else { <main class="routed-page"></main> }
     <router-outlet></router-outlet>
+    <footer class="site-footer">
+      <div class="site-footer-grid page-width">
+        <div class="site-footer-about">
+          <jhub-brand-logo logo="jhub-africa" variant="footer"></jhub-brand-logo>
+          <p>The asset register for JHUB innovators. Find equipment, request it for your project and keep a clear record from handover to return.</p>
+        </div>
+        <nav aria-label="Vault">
+          <h2>Vault</h2>
+          <a routerLink="/catalogue">Asset catalogue</a>
+          <a routerLink="/" fragment="categories">Categories</a>
+          <a routerLink="/" fragment="how-it-works">How it works</a>
+        </nav>
+        <nav aria-label="Account">
+          <h2>Account</h2>
+          <a routerLink="/auth/login">Sign in</a>
+          <a routerLink="/auth/register">Create an account</a>
+          <a routerLink="/admin/login">Administrator sign-in</a>
+        </nav>
+        <div class="site-footer-partner">
+          <h2>Hosted at</h2>
+          <div class="site-footer-partner-info">
+            <img src="/assets/logos/jkuat.png" alt="Jomo Kenyatta University of Agriculture and Technology logo" width="40" height="44">
+            <span>Jomo Kenyatta University of Agriculture and Technology</span>
+          </div>
+        </div>
+      </div>
+      <div class="site-footer-base page-width">
+        <span>© {{ year }} JHUB Africa Vault</span>
+        <span>Built for accountable innovation across Africa</span>
+      </div>
+    </footer>
     <jhub-overlay-host />
   `,
   styles: [`
@@ -111,6 +142,16 @@ import { OverlayHostComponent } from './shared/overlay-host.component';
     .cta-band { display:flex; align-items:center; justify-content:space-between; gap:30px; margin-top:64px; margin-bottom:70px; padding:34px 40px; border:1px solid #e3e8f2; border-radius:10px; background:#fff; box-shadow:var(--shadow-card); }
     .cta-band .eyebrow { margin-bottom:12px; }
     .cta-band h2 { font-size:clamp(30px,3.5vw,40px); }
+    .site-footer { margin-top:64px; border-top:1px solid #e3e6ef; background:#fff; }
+    .site-footer-grid { display:grid; grid-template-columns:minmax(0,1.6fr) repeat(2,minmax(0,1fr)) minmax(0,1.4fr); gap:clamp(12px,4vw,40px); padding-top:56px; padding-bottom:40px; }
+    .site-footer-about jhub-brand-logo { display:block; width:170px; height:54px; margin-bottom:14px; }
+    .site-footer-about p { max-width:36ch; color:#66708b; font-size:11px; line-height:1.6; }
+    .site-footer h2 { margin:0 0 14px; color:#0f1328; font-size:11px; font-weight:700; }
+    .site-footer nav a { display:block; padding:5px 0; color:#49526e; font-size:11px; font-weight:500; }
+    .site-footer nav a:hover { color:#12345b; text-decoration:underline; text-underline-offset:3px; }
+    .site-footer-partner-info { display:flex; align-items:center; gap:12px; color:#49526e; font-size:11px; font-weight:500; line-height:1.45; }
+    .site-footer-partner-info img { width:40px; height:44px; flex:none; object-fit:contain; }
+    .site-footer-base { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 24px; padding-top:16px; padding-bottom:20px; border-top:1px solid #e3e6ef; color:#66708b; font-size:10px; }
     .routed-page { display:none; }
     .topbar { position:sticky; top:0; z-index:20; min-height:76px; display:flex; align-items:center; justify-content:space-between; gap:22px; padding:0 clamp(20px,3vw,48px); background:#fff; border-bottom:1px solid #e5eaf1; }
     .brand { flex:none; display:flex; align-items:center; gap:6px; color:#262571; text-decoration:none; }
@@ -123,6 +164,7 @@ import { OverlayHostComponent } from './shared/overlay-host.component';
     .desktop-nav a:hover,.desktop-nav a.active { color:#262571; }
     .desktop-nav a.active { font-weight:700; box-shadow:inset 0 -2px #2a4695; }
     .nav-actions { flex:none; display:flex; align-items:center; gap:16px; }
+    .mobile-nav-actions { display:none; }
     .user-chip { max-width:180px; overflow:hidden; color:#263850; font-size:12px; font-weight:600; text-decoration:none; text-overflow:ellipsis; white-space:nowrap; }
     .text-button { border:0; background:transparent; color:#2a4695; font-size:12px; font-weight:600; text-decoration:none; white-space:nowrap; }
     .primary-button.compact { padding:9px 12px; border-radius:4px; background:#262571; color:#fff; font-size:11px; text-decoration:none; }
@@ -134,9 +176,14 @@ import { OverlayHostComponent } from './shared/overlay-host.component';
       .category-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .brand jhub-brand-logo { width:112px; height:54px; }
       .menu-toggle { display:block; margin-left:auto; border:1px solid #dce0e8; border-radius:4px; background:#fff; color:#262571; padding:7px 10px; }
+      .nav-actions { display:none; }
       .desktop-nav { display:none; }
-      .desktop-nav.mobile-open { position:absolute; top:100%; left:0; right:0; display:flex; align-items:stretch; flex-direction:column; gap:0; padding:8px 18px; background:#fff; border-bottom:1px solid #e6e8ee; box-shadow:0 10px 18px #17203318; }
+      .desktop-nav.mobile-open { position:absolute; top:100%; left:0; right:0; z-index:30; display:flex; align-items:stretch; flex-direction:column; gap:0; padding:8px 18px 16px; background:#fff; border-bottom:1px solid #e6e8ee; box-shadow:0 10px 18px #17203318; }
       .desktop-nav.mobile-open a { padding:12px 8px; border-bottom:1px solid #edf0f4; }
+      .mobile-nav-actions { display:flex; align-items:center; gap:12px; padding:12px 8px 0; border-top:1px solid #edf0f4; }
+      .mobile-nav-actions .user-chip { flex:1; max-width:none; }
+      .mobile-nav-actions .text-button { padding:12px 0; }
+      .mobile-nav-actions .primary-button { margin-left:auto; }
     }
     @media (max-width:480px) {
       .topbar { gap:8px; padding:0 12px; }
@@ -154,6 +201,13 @@ import { OverlayHostComponent } from './shared/overlay-host.component';
       .process-band { padding:48px 0; }
       .process-content { grid-template-columns:minmax(0,1fr); gap:26px; }
       .cta-band { align-items:flex-start; flex-direction:column; margin-top:38px; margin-bottom:42px; padding:26px 22px; }
+      .site-footer { margin-top:42px; }
+      .site-footer-grid { grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr)) minmax(0,1.2fr); gap:12px; padding-top:40px; padding-bottom:28px; }
+      .site-footer-about jhub-brand-logo { width:100px; height:42px; }
+      .site-footer-about p,.site-footer nav a,.site-footer-partner-info { font-size:9px; }
+      .site-footer h2 { font-size:10px; }
+      .site-footer-partner-info { display:block; }
+      .site-footer-partner-info img { width:30px; height:32px; margin-bottom:5px; }
       .brand { gap:5px; }
       .brand jhub-brand-logo { width:100px; height:49px; }
       .brand strong { font-size:9px; }
@@ -188,6 +242,7 @@ export class AppComponent {
   protected readonly innovatorRequests = signal<AssetRequest[]>([]);
 
   protected readonly Role = Role;
+  protected readonly year = new Date().getFullYear();
 
   private readonly navigationUrl = toSignal(
     this.router.events.pipe(
@@ -204,7 +259,6 @@ export class AppComponent {
 
   constructor() {
     this.auth.hydrate().subscribe();
-    this.assetStore.load();
   }
 
   protected readonly isHome = computed(() => {

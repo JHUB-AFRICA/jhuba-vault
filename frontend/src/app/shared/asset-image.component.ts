@@ -5,7 +5,7 @@ import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges } f
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `@if (url && !failed) {
-    <img [src]="url" [alt]="alt" [style.object-fit]="fit" [attr.loading]="loading" decoding="async" (error)="failed = true" />
+    <img [src]="optimizedUrl" [alt]="alt" [style.object-fit]="fit" [attr.loading]="loading" width="800" height="600" decoding="async" (error)="failed = true" />
   } @else {
     <span class="fallback" role="img" [attr.aria-label]="alt + ' (no photo available)'"><i class="pi pi-box" aria-hidden="true"></i></span>
   }`,
@@ -24,5 +24,12 @@ export class AssetImageComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['url']) this.failed = false;
+  }
+
+  protected get optimizedUrl(): string | null | undefined {
+    if (!this.url) return this.url;
+    return this.url.includes('/image/upload/')
+      ? this.url.replace('/image/upload/', '/image/upload/f_auto,q_auto,w_800/')
+      : this.url;
   }
 }
