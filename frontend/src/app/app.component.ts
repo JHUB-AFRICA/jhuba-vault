@@ -38,6 +38,7 @@ const ADMIN_NAV: NavGroup[] = [
     items: [
       { label: 'Users', icon: 'pi-users', link: '/admin/users' },
       { label: 'Audit log', icon: 'pi-history', link: '/admin/audit-log' },
+      { label: 'Support Hub', icon: 'pi-question-circle', link: '/support' },
       { label: 'Settings', icon: 'pi-cog', link: '/admin/settings' }
     ]
   }
@@ -57,7 +58,10 @@ const INNOVATOR_NAV: NavGroup[] = [
       { label: 'Active loans', icon: 'pi-clock', link: '/app/loans' }
     ]
   },
-  { heading: 'Account', items: [{ label: 'Profile', icon: 'pi-user', link: '/app/profile' }] }
+  { heading: 'Account', items: [
+    { label: 'Profile', icon: 'pi-user', link: '/app/profile' },
+    { label: 'Support Hub', icon: 'pi-question-circle', link: '/support' }
+  ] }
 ];
 
 @Component({
@@ -95,7 +99,7 @@ export class AppComponent {
     const path = this.path();
     if (path.startsWith('/auth/') || path === '/admin/login') return 'bare';
     if (path.startsWith('/app/') || path.startsWith('/admin/') || path === '/requests') return 'app';
-    if (this.auth.user() && (path === '/catalogue' || path.startsWith('/assets/'))) return 'app';
+    if (this.auth.user() && (path === '/catalogue' || path === '/support' || path.startsWith('/assets/'))) return 'app';
     return 'public';
   });
 

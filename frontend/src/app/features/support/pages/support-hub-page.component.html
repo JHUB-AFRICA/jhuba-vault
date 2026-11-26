@@ -1,0 +1,193 @@
+<section class="support-page">
+  @if (isAdmin()) {
+    <div class="container admin-support">
+      <header class="role-header admin-header">
+        <div>
+          <p class="eyebrow"><i class="pi pi-shield" aria-hidden="true"></i> ADMIN SUPPORT WORKSPACE</p>
+          <h1>Support request queue</h1>
+          <p>Review innovator requests, ask for details, and send a response or decision.</p>
+        </div>
+        <button type="button" class="btn btn-secondary" (click)="loadRequests()"><i class="pi pi-refresh" aria-hidden="true"></i> Refresh queue</button>
+      </header>
+
+      <div class="admin-stats" aria-label="Support queue summary">
+        <div class="stat-card"><span class="stat-icon new"><i class="pi pi-inbox" aria-hidden="true"></i></span><span class="stat-value">{{ newCount() }}</span><span class="stat-label">New requests</span></div>
+        <div class="stat-card"><span class="stat-icon waiting"><i class="pi pi-question-circle" aria-hidden="true"></i></span><span class="stat-value">{{ waitingCount() }}</span><span class="stat-label">Waiting for information</span></div>
+        <div class="stat-card"><span class="stat-icon active"><i class="pi pi-spinner" aria-hidden="true"></i></span><span class="stat-value">{{ activeCount() }}</span><span class="stat-label">In progress</span></div>
+        <div class="stat-card"><span class="stat-icon total"><i class="pi pi-list" aria-hidden="true"></i></span><span class="stat-value">{{ requests().length }}</span><span class="stat-label">All requests</span></div>
+      </div>
+
+      @if (notice()) { <div class="support-alert success-alert" role="status"><i class="pi pi-check-circle" aria-hidden="true"></i>{{ notice() }}<button type="button" (click)="clearNotice()" aria-label="Dismiss message">×</button></div> }
+      @if (error()) { <div class="support-alert error-alert" role="alert"><i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ error() }}</div> }
+
+      <div class="admin-workspace">
+        <section class="queue-panel" aria-labelledby="queue-heading">
+          <div class="queue-title"><div><h2 id="queue-heading">Requests</h2><span>{{ visibleRequests().length }} shown</span></div></div>
+          <label class="queue-search"><i class="pi pi-search" aria-hidden="true"></i><span class="sr-only">Search requests</span><input type="search" [ngModel]="adminSearch()" (ngModelChange)="adminSearch.set($event)" name="admin-search" placeholder="Search name, ID or topic" /></label>
+          <div class="queue-filters">
+            <label><span>Status</span><select [ngModel]="adminStatusFilter()" (ngModelChange)="adminStatusFilter.set($event)" name="admin-status-filter"><option value="">All statuses</option>@for (status of statusOptions; track status) { <option [value]="status">{{ statusLabel(status) }}</option> }</select></label>
+            <label><span>Request type</span><select [ngModel]="adminCategoryFilter()" (ngModelChange)="adminCategoryFilter.set($event)" name="admin-category-filter"><option value="">All types</option>@for (topic of categoryOptions; track topic.id) { <option [value]="topic.category">{{ topic.title }}</option> }</select></label>
+          </div>
+          <div class="queue-list">
+            @if (loading()) {
+              <div class="list-state"><i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading requests…</div>
+            } @else if (visibleRequests().length) {
+              @for (request of visibleRequests(); track request.id) {
+                <button type="button" class="queue-item" [class.is-selected]="activeRequest()?.id === request.id" (click)="selectRequest(request)">
+                  <span class="queue-item-top"><strong>{{ request.reference }}</strong><span class="status-pill" [attr.data-status]="request.status">{{ statusLabel(request.status) }}</span></span>
+                  <span class="queue-item-title">{{ request.title }}</span>
+                  <span class="queue-item-meta">{{ request.requester.fullName }} · {{ categoryLabel(request.category) }}</span>
+                  <span class="queue-item-date">Updated {{ formatDate(request.updatedAt) }}</span>
+                </button>
+              }
+            } @else {
+              <div class="list-state"><i class="pi pi-inbox" aria-hidden="true"></i><strong>No requests found</strong><span>New innovator requests will appear here.</span></div>
+            }
+          </div>
+        </section>
+
+        <section class="request-panel" aria-label="Selected support request">
+          @if (activeRequest(); as request) {
+            <div class="request-detail-head">
+              <div><p class="detail-reference">{{ request.reference }} · {{ categoryLabel(request.category) }}</p><h2>{{ request.title }}</h2></div>
+              <span class="status-pill large" [attr.data-status]="request.status">{{ statusLabel(request.status) }}</span>
+            </div>
+            <div class="requester-card">
+              <span class="requester-avatar">{{ request.requester.fullName.slice(0, 1).toUpperCase() }}</span>
+              <div><strong>{{ request.requester.fullName }}</strong><span>{{ request.requester.email }} · {{ request.project.name }}</span>@if (request.assignedTo) { <small class="assigned-owner">Assigned to {{ request.assignedTo.fullName }}</small> }</div>
+              <time>{{ formatDate(request.createdAt) }}</time>
+            </div>
+            <div class="request-description"><h3>What they need help with</h3><p>{{ request.description }}</p>@if (request.details?.['categoryContext']) { <h3>Category details</h3><p>{{ request.details?.['categoryContext'] }}</p> }</div>
+
+            <section class="conversation" aria-labelledby="conversation-heading">
+              <div class="conversation-heading"><div><h3 id="conversation-heading">Conversation</h3><span>Replies are visible to the innovator. Internal notes stay with admins.</span></div></div>
+              @if (request.updates.length) {
+                <div class="reply-list">
+                  @for (update of request.updates; track update.id) {
+                    <article class="reply-card" [class.internal-reply]="update.visibility === 'INTERNAL'" [class.status-update]="update.kind === 'STATUS_CHANGE'">
+                      <div class="reply-meta"><strong>{{ update.author.fullName }}</strong><span class="reply-role">{{ update.visibility === 'INTERNAL' ? 'Internal note' : updateKindLabel(update.kind) }}</span><time>{{ formatDate(update.createdAt) }}</time></div>
+                      <p>{{ update.body }}</p>
+                    </article>
+                  }
+                </div>
+              } @else { <p class="conversation-empty">No messages yet. Send a response to start the conversation.</p> }
+            </section>
+
+            @if (request.status !== SupportStatus.CLOSED && request.status !== SupportStatus.DECLINED) {
+              <div class="reply-composer">
+                <label for="admin-reply">{{ internalOnly ? 'Internal note' : 'Reply to innovator' }}</label>
+                <textarea id="admin-reply" [(ngModel)]="replyText" name="admin-reply" rows="4" [placeholder]="internalOnly ? 'Write a note for other admins…' : 'Write a clear response or ask for more information…'"></textarea>
+                <div class="composer-actions">
+                  <label class="check-option"><input type="checkbox" [(ngModel)]="internalOnly" name="internal-only" /><span>Keep this as an internal note</span></label>
+                  <button type="button" class="btn btn-primary" [disabled]="busy() || !replyText.trim()" (click)="sendReply()"><i class="pi pi-send" aria-hidden="true"></i> {{ internalOnly ? 'Save internal note' : 'Send reply' }}</button>
+                </div>
+              </div>
+            }
+
+            <section class="status-editor" aria-labelledby="status-heading">
+              <div><h3 id="status-heading">Request status</h3><p>Choose the next step in the request workflow.</p></div>
+              <div class="status-edit-controls">
+                <select [ngModel]="statusDraft()" (ngModelChange)="statusDraft.set($event)" name="status-update">@for (status of statusChoices(request); track status) { <option [value]="status">{{ statusLabel(status) }}</option> }</select>
+                @if (statusDraft() === SupportStatus.DECLINED) { <label class="decline-reason"><span>Reason for declining</span><textarea rows="2" [ngModel]="declineReason()" (ngModelChange)="declineReason.set($event)" name="decline-reason" placeholder="Explain the decision for the innovator"></textarea></label> }
+                @if (statusDraft() === SupportStatus.DEFERRED) { <label class="decline-reason"><span>Reason for deferring</span><textarea rows="2" [ngModel]="deferReason()" (ngModelChange)="deferReason.set($event)" name="defer-reason" placeholder="Explain why the request is deferred"></textarea></label> }
+                @if (statusDraft() === SupportStatus.COMPLETED) {
+                  <label class="decline-reason"><span>Delivery summary</span><textarea rows="2" [ngModel]="deliverySummary()" (ngModelChange)="deliverySummary.set($event)" name="delivery-summary" placeholder="What support was delivered?"></textarea></label>
+                  <label class="decline-reason"><span>Actual outcome</span><textarea rows="2" [ngModel]="actualOutcome()" (ngModelChange)="actualOutcome.set($event)" name="actual-outcome" placeholder="What was the outcome for the innovator?"></textarea></label>
+                }
+                <button type="button" class="btn btn-secondary" [disabled]="busy() || statusDraft() === request.status" (click)="saveStatus()">Save status</button>
+              </div>
+            </section>
+          } @else {
+            <div class="detail-empty"><span><i class="pi pi-comments" aria-hidden="true"></i></span><h2>Select a request</h2><p>Choose an innovator request from the queue to review the details and respond.</p></div>
+          }
+        </section>
+      </div>
+    </div>
+  } @else {
+    <div class="innovator-support">
+      <div class="support-hero">
+        <div class="container support-hero-inner">
+          <div class="hero-copy">
+            <p class="eyebrow"><i class="pi pi-sparkles" aria-hidden="true"></i> JHUB AFRICA INNOVATION SUPPORT</p>
+            <h1>What can we help you move forward?</h1>
+            <p class="hero-intro">Send a request to the JHUB team and follow the conversation from your Vault account. Your request stays connected to your account.</p>
+            <a class="btn btn-primary btn-lg" href="#new-request">Create a support request <i class="pi pi-arrow-down" aria-hidden="true"></i></a>
+          </div>
+          <div class="hero-art" aria-hidden="true"><div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div><div class="art-core"><i class="pi pi-lightbulb"></i></div><span class="art-node node-one"><i class="pi pi-bolt"></i></span><span class="art-node node-two"><i class="pi pi-code"></i></span><span class="art-node node-three"><i class="pi pi-users"></i></span></div>
+        </div>
+      </div>
+
+      <div class="container support-content">
+        @if (notice()) { <div class="support-alert success-alert" role="status"><i class="pi pi-check-circle" aria-hidden="true"></i>{{ notice() }}<button type="button" (click)="clearNotice()" aria-label="Dismiss message">×</button></div> }
+        @if (error()) { <div class="support-alert error-alert" role="alert"><i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ error() }}</div> }
+
+        <div class="innovator-grid">
+          <section id="new-request" class="new-request-card" aria-labelledby="new-request-heading">
+            <div class="form-heading"><span class="form-heading-icon"><i class="pi pi-send" aria-hidden="true"></i></span><div><p class="section-kicker">Tell us what you need</p><h2 id="new-request-heading">New support request</h2></div></div>
+            <form (submit)="submitRequest($event)">
+              <label class="field"><span>Request type</span><select [(ngModel)]="draft.category" name="category" required>@for (topic of categoryOptions; track topic.id) { <option [ngValue]="topic.category">{{ topic.title }}</option> }</select><small>{{ categoryPrompt() }}</small></label>
+              <label class="field"><span>Request title</span><input [(ngModel)]="draft.title" name="title" required minlength="4" maxlength="160" placeholder="Briefly describe what you need help with" /></label>
+              <label class="field"><span>Project or innovation</span><select [(ngModel)]="draft.projectId" name="projectId" required><option value="" disabled>Select an active project</option>@for (project of projects(); track project.id) { <option [value]="project.id">{{ project.name }}</option> }</select>@if (!projects().length) { <small>No active project is linked to your account yet. Ask a Vault administrator to add one before submitting a support request.</small> }</label>
+              <label class="field"><span>Describe the problem</span><textarea [(ngModel)]="draft.description" name="description" required minlength="10" maxlength="5000" rows="5" placeholder="What are you trying to do, what have you tried, and what outcome would help?"></textarea></label>
+              <label class="field"><span>Details for this request type <em>Optional</em></span><textarea [(ngModel)]="draft.context" name="context" maxlength="3000" rows="3" [placeholder]="categoryPrompt()"></textarea></label>
+              <p class="privacy-hint"><i class="pi pi-lock" aria-hidden="true"></i> Don’t include passwords, private keys, or sensitive personal data.</p>
+              <button type="submit" class="btn btn-primary submit-request" [disabled]="busy() || !projects().length"><i class="pi pi-send" aria-hidden="true"></i> {{ busy() ? 'Sending request…' : 'Send request to JHUB' }}</button>
+            </form>
+          </section>
+
+          <section class="my-requests-card" aria-labelledby="my-requests-heading">
+            <div class="section-heading compact-heading"><div><p class="section-kicker">Your support conversations</p><h2 id="my-requests-heading">My requests</h2></div><span class="result-count">{{ requests().length }}</span></div>
+            @if (loading()) { <div class="list-state"><i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading your requests…</div> }
+            @else if (requests().length) {
+              <div class="my-request-list">
+                @for (request of requests(); track request.id) {
+                  <button type="button" class="my-request-item" [class.is-selected]="activeRequest()?.id === request.id" (click)="selectRequest(request)">
+                    <span class="my-request-line"><strong>{{ request.reference }}</strong><span class="status-pill" [attr.data-status]="request.status">{{ statusLabel(request.status) }}</span></span>
+                    <span class="my-request-title">{{ request.title }}</span><span class="my-request-meta">{{ request.project.name }} · {{ categoryLabel(request.category) }} · Updated {{ formatDate(request.updatedAt) }}</span>
+                  </button>
+                }
+              </div>
+            } @else { <div class="list-state"><i class="pi pi-inbox" aria-hidden="true"></i><strong>No requests yet</strong><span>Submit a request and the support team’s replies will appear here.</span></div> }
+          </section>
+        </div>
+
+        @if (activeRequest(); as request) {
+          <section class="innovator-thread" aria-labelledby="thread-heading">
+            <div class="thread-head"><div><p class="detail-reference">{{ request.reference }} · {{ categoryLabel(request.category) }}</p><h2 id="thread-heading">{{ request.title }}</h2><p class="thread-summary">{{ request.description }}</p></div><span class="status-pill large" [attr.data-status]="request.status">{{ statusLabel(request.status) }}</span></div>
+            @if (request.declineReason || request.deferReason) { <div class="decision-note"><strong>Decision note from JHUB</strong><p>{{ request.declineReason || request.deferReason }}</p></div> }
+            <div class="thread-replies">
+              <h3>Conversation</h3>
+              @if (request.updates.length) {
+                @for (update of request.updates; track update.id) {
+                  <article class="reply-card" [class.from-admin]="update.author.role === Role.ADMIN" [class.status-update]="update.kind === 'STATUS_CHANGE'"><div class="reply-meta"><strong>{{ update.author.fullName }}</strong><span class="reply-role">{{ updateKindLabel(update.kind) }}</span><time>{{ formatDate(update.createdAt) }}</time></div><p>{{ update.body }}</p></article>
+                }
+              } @else { <p class="conversation-empty">The support team hasn’t replied yet. You can check back here for updates.</p> }
+            </div>
+            @if (request.status === SupportStatus.NEEDS_INFORMATION) {
+              <div class="reply-composer"><label for="innovator-reply">The support team needs more information</label><textarea id="innovator-reply" [(ngModel)]="replyText" name="innovator-reply" rows="3" placeholder="Add the details they asked for…"></textarea><div class="composer-actions"><span></span><button type="button" class="btn btn-primary" [disabled]="busy() || !replyText.trim()" (click)="sendReply()"><i class="pi pi-send" aria-hidden="true"></i> Send information</button></div></div>
+            }
+          </section>
+        }
+
+        <section class="topics-section" aria-labelledby="topics-heading">
+          <div class="section-heading"><div><p class="section-kicker">Not sure where to start?</p><h2 id="topics-heading">Support areas</h2></div></div>
+          <label class="search-box"><i class="pi pi-search" aria-hidden="true"></i><span class="sr-only">Search support topics and questions</span><input type="search" [value]="search()" (input)="setSearch($event)" placeholder="Search topics and questions…" /></label>
+          <div class="topic-grid">
+            @for (topic of visibleTopics(); track topic.id) {
+              <button type="button" class="topic-card" [class.is-selected]="selectedTopic() === topic.id" (click)="selectTopic(topic.id)" [attr.aria-pressed]="selectedTopic() === topic.id"><span class="topic-icon"><i class="pi" [class]="'pi ' + topic.icon" aria-hidden="true"></i></span><span class="topic-title">{{ topic.title }}</span><span class="topic-description">{{ topic.description }}</span><span class="topic-examples">{{ topic.examples }}</span><span class="topic-action">View questions <i class="pi pi-arrow-right" aria-hidden="true"></i></span></button>
+            } @empty { <div class="empty-search"><strong>No support areas found</strong><span>Try another search term.</span></div> }
+          </div>
+        </section>
+
+        <section class="questions-section" aria-labelledby="questions-heading">
+          <div class="section-heading"><div><p class="section-kicker">Quick guidance</p><h2 id="questions-heading">Common questions</h2></div>@if (selectedTopic()) { <button type="button" class="text-button" (click)="clearTopic()">Show all questions <i class="pi pi-times" aria-hidden="true"></i></button> }</div>
+          <div class="question-list">
+            @for (question of visibleQuestions(); track question.id) {
+              <article class="question-item" [class.is-open]="openQuestion() === question.id"><h3><button type="button" [attr.aria-expanded]="openQuestion() === question.id" [attr.aria-controls]="'answer-' + question.id" (click)="toggleQuestion(question.id)"><span>{{ question.question }}</span><i class="pi" [class]="openQuestion() === question.id ? 'pi pi-minus' : 'pi pi-plus'" aria-hidden="true"></i></button></h3>@if (openQuestion() === question.id) { <div class="answer" [id]="'answer-' + question.id"><p>{{ question.answer }}</p></div> }</article>
+            } @empty { <div class="empty-questions">No matching questions yet. Try another topic or search term.</div> }
+          </div>
+        </section>
+      </div>
+    </div>
+  }
+</section>
