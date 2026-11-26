@@ -61,6 +61,7 @@ export class RequestService {
 export class SupportService {
   private readonly http = inject(HttpClient);
   listProjects(): Observable<SupportProject[]> { return this.http.get<ApiResponse<SupportProject[]>>(`${API_URL}/support/projects`).pipe(map(response => response.data)); }
+  createProject(name: string): Observable<SupportProject> { return this.http.post<ApiResponse<SupportProject>>(`${API_URL}/support/projects`, { name }).pipe(map(response => response.data)); }
   listMine(): Observable<SupportRequest[]> { return this.http.get<ApiResponse<SupportRequest[]>>(`${API_URL}/support/requests`).pipe(map(response => response.data)); }
   listAdmin(filters?: { status?: SupportStatus; category?: SupportCategory; search?: string }): Observable<SupportRequest[]> {
     let params = new HttpParams();

@@ -6,7 +6,7 @@ import { Prisma, RequestStatus, Role, SupportProjectStatus, SupportStatus, Suppo
 import { prisma } from '../config/prisma';
 import { HttpError } from '../middleware/errors';
 import { requireAuth, requireRole } from '../middleware/auth';
-import { adminRequestQuery, adminRequestSchema, adminSearchQuery, assetSchema, kenyanPhoneNumberSchema, loginSchema, registerSchema, rejectSchema, requestSchema, statusQuery, supportAdminQuery, supportReplySchema, supportRequestSchema, supportStatusSchema } from '../validators/schemas';
+import { adminRequestQuery, adminRequestSchema, adminSearchQuery, assetSchema, kenyanPhoneNumberSchema, loginSchema, registerSchema, rejectSchema, requestSchema, statusQuery, supportAdminQuery, supportProjectSchema, supportReplySchema, supportRequestSchema, supportStatusSchema } from '../validators/schemas';
 import { signToken } from '../utils/jwt';
 import { audit } from '../services/audit.service';
 import { sendApprovalEmail } from '../services/mail.service';
@@ -393,6 +393,20 @@ router.get('/support/projects', ...innovator, async (req, res) => {
     orderBy: { name: 'asc' }
   });
   res.json({ success: true, data: projects });
+});
+
+router.post('/support/projects', ...innovator, async (req, res) => {
+  const input = supportProjectSchema.parse(req.body);
+  const project = await prisma.supportProject.create({
+    data: {
+      name: input.name,
+      status: SupportProjectStatus.ACTIVE,
+      innovatorId: req.auth!.userId
+    },
+    select: { id: true, name: true, status: true, innovatorId: true, createdAt: true, updatedAt: true }
+  });
+  await audit(prisma, req.auth!.userId, 'SUPPORT_PROJECT_CREATED', 'SupportProject', project.id, { name: project.name });
+  res.status(201).json({ success: true, data: project });
 });
 
 router.post('/support/requests', ...innovator, async (req, res) => {

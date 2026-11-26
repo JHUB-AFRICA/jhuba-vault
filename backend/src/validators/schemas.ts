@@ -99,6 +99,10 @@ export const supportRequestSchema = z.object({
   details: z.record(z.string(), z.string().max(3000)).default({})
 });
 
+export const supportProjectSchema = z.object({
+  name: z.string().trim().min(2).max(120)
+});
+
 export const supportReplySchema = z.object({
   message: z.string().trim().min(2).max(5000),
   internalOnly: z.boolean().default(false)

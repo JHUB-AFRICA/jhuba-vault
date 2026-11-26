@@ -55,6 +55,8 @@ export class SupportHubPageComponent implements OnInit {
 
   protected readonly requests = signal<SupportRequest[]>([]);
   protected readonly projects = signal<SupportProject[]>([]);
+  protected readonly showProjectForm = signal(false);
+  protected readonly savingProject = signal(false);
   protected readonly activeRequest = signal<SupportRequest | null>(null);
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
@@ -79,6 +81,7 @@ export class SupportHubPageComponent implements OnInit {
     description: '',
     context: ''
   };
+  protected newProjectName = '';
   protected replyText = '';
   protected internalOnly = false;
 
@@ -130,6 +133,35 @@ export class SupportHubPageComponent implements OnInit {
         if (!projects.some(project => project.id === this.draft.projectId)) this.draft.projectId = projects[0]?.id ?? '';
       },
       error: () => this.error.set('Your active projects could not be loaded. Refresh the page or contact the Vault administrator.')
+    });
+  }
+
+  protected toggleProjectForm(): void {
+    this.showProjectForm.update(isOpen => !isOpen);
+  }
+
+  protected createProject(): void {
+    const name = this.newProjectName.trim();
+    if (name.length < 2 || name.length > 120) {
+      this.error.set('Project name must be between 2 and 120 characters.');
+      return;
+    }
+    this.savingProject.set(true);
+    this.error.set('');
+    this.notice.set('');
+    this.supportService.createProject(name).subscribe({
+      next: project => {
+        this.projects.update(projects => [...projects, project].sort((left, right) => left.name.localeCompare(right.name)));
+        this.draft.projectId = project.id;
+        this.newProjectName = '';
+        this.showProjectForm.set(false);
+        this.notice.set(`Project “${project.name}” was added and selected.`);
+        this.savingProject.set(false);
+      },
+      error: response => {
+        this.error.set(response?.error?.message ?? 'The project could not be added. Please try again.');
+        this.savingProject.set(false);
+      }
     });
   }
 
