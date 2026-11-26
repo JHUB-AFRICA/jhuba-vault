@@ -30,6 +30,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/catalogue/pages/catalogue-page.component').then(module => module.CataloguePageComponent)
   },
   {
+    path: 'support',
+    canActivate: [authGuard],
+    title: 'Innovation Support Hub | JHUB Africa Vault',
+    loadComponent: () => import('./features/support/pages/support-hub-page.component').then(module => module.SupportHubPageComponent)
+  },
+  {
     path: 'requests',
     canActivate: [authGuard, roleGuard(Role.ADMIN)],
     loadComponent: () => import('./features/admin/pages/admin-requests-page.component').then(module => module.AdminRequestsPageComponent)

@@ -1,4 +1,4 @@
-import { AssetCategory, RequestStatus } from '@prisma/client';
+import { AssetCategory, RequestStatus, SupportCategory, SupportPriority, SupportStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export const kenyanPhoneNumberSchema = z.string().trim().regex(
@@ -88,4 +88,45 @@ export const adminRequestQuery = statusQuery.extend({
 
 export const adminSearchQuery = z.object({
   q: z.string().trim().min(2).max(100)
+});
+
+export const supportRequestSchema = z.object({
+  category: z.nativeEnum(SupportCategory),
+  priority: z.nativeEnum(SupportPriority).default(SupportPriority.NORMAL),
+  title: z.string().trim().min(4).max(160),
+  description: z.string().trim().min(10).max(5000),
+  projectId: z.string().trim().min(1).max(120),
+  details: z.record(z.string(), z.string().max(3000)).default({})
+});
+
+export const supportProjectSchema = z.object({
+  name: z.string().trim().min(2).max(120)
+});
+
+export const supportReplySchema = z.object({
+  message: z.string().trim().min(2).max(5000),
+  internalOnly: z.boolean().default(false)
+});
+
+export const supportStatusSchema = z.object({
+  status: z.nativeEnum(SupportStatus),
+  declineReason: z.string().trim().max(1000).optional(),
+  deferReason: z.string().trim().max(1000).optional(),
+  deliverySummary: z.string().trim().max(5000).optional(),
+  actualOutcome: z.string().trim().max(5000).optional()
+}).refine(value => value.status !== SupportStatus.DECLINED || !!value.declineReason, {
+  message: 'A reason is required when declining a support request.',
+  path: ['declineReason']
+}).refine(value => value.status !== SupportStatus.DEFERRED || !!value.deferReason, {
+  message: 'A reason is required when deferring a support request.',
+  path: ['deferReason']
+}).refine(value => value.status !== SupportStatus.COMPLETED || (!!value.deliverySummary && !!value.actualOutcome), {
+  message: 'Add a delivery summary and actual outcome before completing a request.',
+  path: ['deliverySummary']
+});
+
+export const supportAdminQuery = z.object({
+  status: z.nativeEnum(SupportStatus).optional(),
+  category: z.nativeEnum(SupportCategory).optional(),
+  search: z.string().trim().max(100).optional()
 });

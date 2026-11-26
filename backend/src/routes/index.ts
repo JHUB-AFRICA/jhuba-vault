@@ -1,11 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import multer from 'multer';
-import { Prisma, RequestStatus, Role } from '@prisma/client';
+import { Prisma, RequestStatus, Role, SupportProjectStatus, SupportStatus, SupportUpdateKind, SupportUpdateVisibility } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { HttpError } from '../middleware/errors';
 import { requireAuth, requireRole } from '../middleware/auth';
-import { adminRequestQuery, adminRequestSchema, adminSearchQuery, assetSchema, kenyanPhoneNumberSchema, loginSchema, registerSchema, rejectSchema, requestSchema, statusQuery } from '../validators/schemas';
+import { adminRequestQuery, adminRequestSchema, adminSearchQuery, assetSchema, kenyanPhoneNumberSchema, loginSchema, registerSchema, rejectSchema, requestSchema, statusQuery, supportAdminQuery, supportProjectSchema, supportReplySchema, supportRequestSchema, supportStatusSchema } from '../validators/schemas';
 import { signToken } from '../utils/jwt';
 import { audit } from '../services/audit.service';
 import { sendApprovalEmail } from '../services/mail.service';
@@ -20,6 +21,30 @@ const innovator = [requireAuth, requireRole(Role.INNOVATOR)];
 const publicUser = (user: { passwordHash: string } & Record<string, unknown>) => { const { passwordHash: _passwordHash, ...safe } = user; return safe; };
 const publicAsset = <T extends { imagePublicId?: string | null }>(asset: T): Omit<T, 'imagePublicId'> => { const { imagePublicId: _imagePublicId, ...safe } = asset; return safe; };
 const includeRequest = { innovator: { select: { id: true, fullName: true, email: true, phoneNumber: true, identificationId: true, department: true, role: true } }, teamMembers: true, requestItems: { include: { asset: true } } } as const satisfies Prisma.AssetRequestInclude;
+const includeSupportRequest = {
+  project: { select: { id: true, name: true } },
+  requester: { select: { id: true, fullName: true, email: true, role: true } },
+  assignedTo: { select: { id: true, fullName: true, email: true } },
+  updates: { include: { author: { select: { id: true, fullName: true, role: true } } }, orderBy: { createdAt: 'asc' as const } },
+  feedback: true
+} satisfies Prisma.SupportRequestInclude;
+
+const supportTransitions: Record<SupportStatus, SupportStatus[]> = {
+  [SupportStatus.SUBMITTED]: [SupportStatus.UNDER_REVIEW, SupportStatus.NEEDS_INFORMATION, SupportStatus.APPROVED, SupportStatus.DECLINED, SupportStatus.DEFERRED],
+  [SupportStatus.UNDER_REVIEW]: [SupportStatus.NEEDS_INFORMATION, SupportStatus.APPROVED, SupportStatus.DECLINED, SupportStatus.DEFERRED],
+  [SupportStatus.NEEDS_INFORMATION]: [SupportStatus.UNDER_REVIEW, SupportStatus.APPROVED, SupportStatus.DECLINED, SupportStatus.DEFERRED],
+  [SupportStatus.APPROVED]: [SupportStatus.ASSIGNED, SupportStatus.IN_PROGRESS, SupportStatus.COMPLETED],
+  [SupportStatus.DEFERRED]: [SupportStatus.UNDER_REVIEW],
+  [SupportStatus.ASSIGNED]: [SupportStatus.IN_PROGRESS, SupportStatus.COMPLETED],
+  [SupportStatus.IN_PROGRESS]: [SupportStatus.NEEDS_INFORMATION, SupportStatus.COMPLETED],
+  [SupportStatus.COMPLETED]: [SupportStatus.CLOSED],
+  [SupportStatus.DECLINED]: [SupportStatus.CLOSED],
+  [SupportStatus.CLOSED]: []
+};
+
+function visibleSupportRequest<T extends { updates: Array<{ visibility: SupportUpdateVisibility }> }>(request: T, isAdmin: boolean) {
+  return { ...request, updates: request.updates.filter(update => isAdmin || update.visibility !== SupportUpdateVisibility.INTERNAL) };
+}
 
 async function createRequestForInnovator(input: ReturnType<typeof requestSchema.parse>, innovatorId: string, actorId?: string) {
   const assetIds = input.items.map(item => item.assetId);
@@ -360,5 +385,158 @@ router.post('/uploads/assets/:id/image', ...admin, upload.single('file'), valida
 });
 router.delete('/uploads/assets/:id/image', ...admin, async (req, res) => { const asset = await prisma.asset.findUnique({ where: { id: req.params.id } }); if (!asset) throw new HttpError(404, 'ASSET_NOT_FOUND', 'Asset not found'); if (asset.imagePublicId) await deleteImage(asset.imagePublicId); const updated = await prisma.asset.update({ where: { id: asset.id }, data: { imageUrl: null, imagePublicId: null } }); await audit(prisma, req.auth!.userId, 'ASSET_IMAGE_REMOVED', 'Asset', asset.id); res.json({ success: true, data: publicAsset(updated) }); });
 router.patch('/admin/requests/:id/items/:itemId', ...admin, async (req, res) => { const quantity = Number(req.body.quantity); if (!Number.isInteger(quantity) || quantity < 1) throw new HttpError(422, 'INVALID_QUANTITY', 'Quantity must be a positive integer'); const updated = await prisma.$transaction(async tx => { const request = await tx.assetRequest.findUnique({ where: { id: req.params.id } }); if (!request || request.status !== RequestStatus.PENDING) throw new HttpError(409, 'INVALID_STATUS', 'Only pending requests can be modified'); const item = await tx.requestItem.findFirst({ where: { id: req.params.itemId, requestId: request.id } }); if (!item) throw new HttpError(404, 'REQUEST_ITEM_NOT_FOUND', 'Request item not found'); const asset = await tx.asset.findUnique({ where: { id: item.assetId } }); if (!asset || quantity > asset.availableQty) throw new HttpError(409, 'INSUFFICIENT_INVENTORY', 'Requested quantity is unavailable'); const result = await tx.requestItem.update({ where: { id: item.id }, data: { quantity }, include: { asset: true } }); await audit(tx, req.auth!.userId, 'REQUEST_QUANTITY_MODIFIED', 'RequestItem', item.id, { quantity }); return result; }); res.json({ success: true, data: updated }); });
+
+router.get('/support/projects', ...innovator, async (req, res) => {
+  const projects = await prisma.supportProject.findMany({
+    where: { innovatorId: req.auth!.userId, status: SupportProjectStatus.ACTIVE },
+    select: { id: true, name: true, status: true, innovatorId: true, createdAt: true, updatedAt: true },
+    orderBy: { name: 'asc' }
+  });
+  res.json({ success: true, data: projects });
+});
+
+router.post('/support/projects', ...innovator, async (req, res) => {
+  const input = supportProjectSchema.parse(req.body);
+  const project = await prisma.supportProject.create({
+    data: {
+      name: input.name,
+      status: SupportProjectStatus.ACTIVE,
+      innovatorId: req.auth!.userId
+    },
+    select: { id: true, name: true, status: true, innovatorId: true, createdAt: true, updatedAt: true }
+  });
+  await audit(prisma, req.auth!.userId, 'SUPPORT_PROJECT_CREATED', 'SupportProject', project.id, { name: project.name });
+  res.status(201).json({ success: true, data: project });
+});
+
+router.post('/support/requests', ...innovator, async (req, res) => {
+  const input = supportRequestSchema.parse(req.body);
+  const project = await prisma.supportProject.findFirst({ where: { id: input.projectId, innovatorId: req.auth!.userId, status: SupportProjectStatus.ACTIVE } });
+  if (!project) throw new HttpError(404, 'SUPPORT_PROJECT_NOT_FOUND', 'Choose an active project that belongs to your account');
+  const request = await prisma.supportRequest.create({
+    data: {
+      reference: `ISH-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`,
+      category: input.category,
+      priority: input.priority,
+      status: SupportStatus.SUBMITTED,
+      title: input.title,
+      description: input.description,
+      projectId: project.id,
+      details: input.details as Prisma.InputJsonValue,
+      requesterId: req.auth!.userId
+    },
+    include: includeSupportRequest
+  });
+  await audit(prisma, req.auth!.userId, 'SUPPORT_REQUEST_CREATED', 'SupportRequest', request.id, { reference: request.reference, category: request.category, projectId: project.id });
+  res.status(201).json({ success: true, data: visibleSupportRequest(request, false) });
+});
+
+router.get('/support/requests', ...innovator, async (req, res) => {
+  const requests = await prisma.supportRequest.findMany({
+    where: { requesterId: req.auth!.userId },
+    include: includeSupportRequest,
+    orderBy: { updatedAt: 'desc' }
+  });
+  res.json({ success: true, data: requests.map(request => visibleSupportRequest(request, false)) });
+});
+
+router.get('/support/requests/:id', requireAuth, async (req, res) => {
+  const request = await prisma.supportRequest.findUnique({ where: { id: routeId(req) }, include: includeSupportRequest });
+  if (!request || (req.auth!.role !== Role.ADMIN && request.requesterId !== req.auth!.userId)) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  res.json({ success: true, data: visibleSupportRequest(request, req.auth!.role === Role.ADMIN) });
+});
+
+router.post('/support/requests/:id/replies', requireAuth, async (req, res) => {
+  const id = routeId(req);
+  const input = supportReplySchema.parse(req.body);
+  const isAdmin = req.auth!.role === Role.ADMIN;
+  const current = await prisma.supportRequest.findUnique({ where: { id } });
+  if (!current || (!isAdmin && current.requesterId !== req.auth!.userId)) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (current.status === SupportStatus.CLOSED || current.status === SupportStatus.DECLINED) throw new HttpError(409, 'SUPPORT_REQUEST_CLOSED', 'This support request is closed to replies');
+  if (input.internalOnly && !isAdmin) throw new HttpError(403, 'FORBIDDEN', 'Only administrators can add internal notes');
+
+  const isClarification = !isAdmin && current.status === SupportStatus.NEEDS_INFORMATION;
+  const updateKind = isClarification ? SupportUpdateKind.CLARIFICATION_RESPONSE :
+    isAdmin && current.status === SupportStatus.NEEDS_INFORMATION ? SupportUpdateKind.CLARIFICATION_REQUEST : SupportUpdateKind.COMMENT;
+  const result = await prisma.$transaction(async tx => {
+    await tx.supportUpdate.create({
+      data: {
+        requestId: id,
+        authorId: req.auth!.userId,
+        body: input.message,
+        visibility: isAdmin && input.internalOnly ? SupportUpdateVisibility.INTERNAL : SupportUpdateVisibility.REQUESTER,
+        kind: updateKind
+      }
+    });
+    const shouldResumeReview = isClarification;
+    const updated = await tx.supportRequest.update({
+      where: { id },
+      data: shouldResumeReview ? { status: SupportStatus.UNDER_REVIEW } : {},
+      include: includeSupportRequest
+    });
+    await audit(tx, req.auth!.userId, input.internalOnly ? 'SUPPORT_INTERNAL_NOTE_ADDED' : 'SUPPORT_REPLY_ADDED', 'SupportRequest', id, { kind: updateKind, ...(shouldResumeReview ? { status: SupportStatus.UNDER_REVIEW } : {}) });
+    return updated;
+  });
+  res.status(201).json({ success: true, data: visibleSupportRequest(result, isAdmin) });
+});
+
+router.get('/admin/support/requests', ...admin, async (req, res) => {
+  const query = supportAdminQuery.parse(req.query);
+  const search = query.search;
+  const requests = await prisma.supportRequest.findMany({
+    where: {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.category ? { category: query.category } : {}),
+      ...(search ? { OR: [
+        { reference: { contains: search, mode: 'insensitive' } },
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { requester: { fullName: { contains: search, mode: 'insensitive' } } },
+        { requester: { email: { contains: search, mode: 'insensitive' } } },
+        { project: { name: { contains: search, mode: 'insensitive' } } }
+      ] } : {})
+    },
+    include: includeSupportRequest,
+    orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+    take: 200
+  });
+  res.json({ success: true, data: requests });
+});
+
+router.patch('/admin/support/requests/:id/status', ...admin, async (req, res) => {
+  const id = routeId(req);
+  const input = supportStatusSchema.parse(req.body);
+  const current = await prisma.supportRequest.findUnique({ where: { id } });
+  if (!current) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (current.status !== input.status && !supportTransitions[current.status].includes(input.status)) {
+    throw new HttpError(409, 'INVALID_SUPPORT_TRANSITION', `Cannot move a support request from ${current.status} to ${input.status}`);
+  }
+  const updated = await prisma.$transaction(async tx => {
+    const request = await tx.supportRequest.update({
+      where: { id },
+      data: {
+        status: input.status,
+        ...(input.status === SupportStatus.DECLINED ? { declineReason: input.declineReason } : {}),
+        ...(input.status === SupportStatus.DEFERRED ? { deferReason: input.deferReason } : {}),
+        ...(input.status === SupportStatus.ASSIGNED ? { assignedToId: req.auth!.userId } : {}),
+        ...(input.status === SupportStatus.COMPLETED ? { deliverySummary: input.deliverySummary, actualOutcome: input.actualOutcome, completedAt: new Date() } : {}),
+        ...(input.status === SupportStatus.CLOSED ? { closedAt: new Date() } : {})
+      },
+      include: includeSupportRequest
+    });
+    await tx.supportUpdate.create({
+      data: {
+        requestId: id,
+        authorId: req.auth!.userId,
+        body: `Status changed from ${current.status.replace(/_/g, ' ')} to ${input.status.replace(/_/g, ' ')}.${input.declineReason ? ` ${input.declineReason}` : ''}${input.deferReason ? ` ${input.deferReason}` : ''}`,
+        visibility: SupportUpdateVisibility.REQUESTER,
+        kind: SupportUpdateKind.STATUS_CHANGE
+      }
+    });
+    await audit(tx, req.auth!.userId, 'SUPPORT_STATUS_CHANGED', 'SupportRequest', id, { from: current.status, to: input.status });
+    return tx.supportRequest.findUniqueOrThrow({ where: { id }, include: includeSupportRequest });
+  });
+  res.json({ success: true, data: updated });
+});
 
 export default router;

@@ -26,8 +26,8 @@
         <div id="public-menu" class="public-menu" [class.is-open]="menuOpen()">
           <nav class="public-nav" aria-label="Primary">
             <a routerLink="/catalogue" [class.active]="path() === '/catalogue'">Catalogue</a>
+            <a routerLink="/support" [class.active]="path() === '/support'">Support Hub</a>
             <a routerLink="/" fragment="categories">Categories</a>
-            <a routerLink="/" fragment="how-it-works">How it works</a>
           </nav>
           <div class="public-actions">
             @if (auth.user()) {
@@ -52,8 +52,8 @@
         <nav aria-label="Vault">
           <h2>Vault</h2>
           <a routerLink="/catalogue">Asset catalogue</a>
+          <a routerLink="/support">Innovation Support Hub</a>
           <a routerLink="/" fragment="categories">Categories</a>
-          <a routerLink="/" fragment="how-it-works">How it works</a>
         </nav>
         <nav aria-label="Account">
           <h2>Account</h2>

@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs';
-import { Asset, AssetCategory, AssetRequest, AuditLog, TeamMember, User } from './models';
+import { Asset, AssetCategory, AssetRequest, AuditLog, SupportCategory, SupportPriority, SupportProject, SupportRequest, SupportStatus, TeamMember, User } from './models';
 
 const API_URL = '/api';
 interface ApiResponse<T> { success: boolean; data: T; }
@@ -55,6 +55,25 @@ export class RequestService {
     if (filters?.limit) params = params.set('limit', filters.limit);
     return this.http.get<ApiResponse<AdminRequestPage>>(`${API_URL}/admin/requests`, { params }).pipe(map(response => response.data));
   }
+}
+
+@Injectable({ providedIn: 'root' })
+export class SupportService {
+  private readonly http = inject(HttpClient);
+  listProjects(): Observable<SupportProject[]> { return this.http.get<ApiResponse<SupportProject[]>>(`${API_URL}/support/projects`).pipe(map(response => response.data)); }
+  createProject(name: string): Observable<SupportProject> { return this.http.post<ApiResponse<SupportProject>>(`${API_URL}/support/projects`, { name }).pipe(map(response => response.data)); }
+  listMine(): Observable<SupportRequest[]> { return this.http.get<ApiResponse<SupportRequest[]>>(`${API_URL}/support/requests`).pipe(map(response => response.data)); }
+  listAdmin(filters?: { status?: SupportStatus; category?: SupportCategory; search?: string }): Observable<SupportRequest[]> {
+    let params = new HttpParams();
+    if (filters?.status) params = params.set('status', filters.status);
+    if (filters?.category) params = params.set('category', filters.category);
+    if (filters?.search) params = params.set('search', filters.search);
+    return this.http.get<ApiResponse<SupportRequest[]>>(`${API_URL}/admin/support/requests`, { params }).pipe(map(response => response.data));
+  }
+  get(id: string): Observable<SupportRequest> { return this.http.get<ApiResponse<SupportRequest>>(`${API_URL}/support/requests/${id}`).pipe(map(response => response.data)); }
+  create(input: { category: SupportCategory; priority?: SupportPriority; title: string; description: string; projectId: string; details?: Record<string, string> }): Observable<SupportRequest> { return this.http.post<ApiResponse<SupportRequest>>(`${API_URL}/support/requests`, input).pipe(map(response => response.data)); }
+  reply(id: string, message: string, internalOnly = false): Observable<SupportRequest> { return this.http.post<ApiResponse<SupportRequest>>(`${API_URL}/support/requests/${id}/replies`, { message, internalOnly }).pipe(map(response => response.data)); }
+  updateStatus(id: string, input: { status: SupportStatus; declineReason?: string; deferReason?: string; deliverySummary?: string; actualOutcome?: string }): Observable<SupportRequest> { return this.http.patch<ApiResponse<SupportRequest>>(`${API_URL}/admin/support/requests/${id}/status`, input).pipe(map(response => response.data)); }
 }
 
 @Injectable({ providedIn: 'root' })
