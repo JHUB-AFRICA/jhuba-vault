@@ -9,16 +9,22 @@
 }
 
 html {
-  min-width: 320px;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scroll-behavior: smooth;
   scroll-padding-top: calc(var(--topbar-h) + 16px);
   background: var(--bg);
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
-  min-width: 320px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   margin: 0;
   color: var(--text);
   background: var(--bg);

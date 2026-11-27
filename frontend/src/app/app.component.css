@@ -253,6 +253,10 @@
   .sidebar.is-open { transform: none; visibility: visible; transition-delay: 0s; }
   .menu-button { display: inline-grid; }
   .footer-grid { grid-template-columns: 1fr 1fr; }
+
+  .topbar { gap: 10px; }
+  .topbar jhub-global-search { flex: 1; min-width: 0; }
+  .content { padding-bottom: 40px; }
 }
 
 @media (max-width: 860px) {
@@ -281,7 +285,52 @@
 }
 
 @media (max-width: 640px) {
-  .user-copy, .user-trigger .pi, .cart-label { display: none; }
-  .user-trigger { padding: 2px; }
-  .footer-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 40px 28px; }
+  .topbar {
+    flex-wrap: wrap;
+  }
+
+  .topbar jhub-global-search {
+    order: 3;
+    flex: 1 0 100%;
+  }
+
+  .topbar-end {
+    margin-left: auto;
+  }
+
+  .main,
+  .content,
+  .card,
+  .table-wrap,
+  .page,
+  .stack,
+  .row,
+  .row-between {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    min-width: 680px;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+
+  .page-head,
+  .page-actions,
+  .row,
+  .row-between {
+    width: 100%;
+  }
 }

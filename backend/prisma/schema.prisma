@@ -8,22 +8,31 @@ datasource db {
 }
 
 model User {
-  id               String         @id @default(uuid())
-  fullName         String
-  email            String         @unique
-  passwordHash     String
-  phoneNumber      String
-  identificationId String         @unique
-  department       String?
-  bio              String?
-  githubUrl        String?
-  avatarUrl        String?
-  avatarPublicId   String?
-  role             Role           @default(INNOVATOR)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  requests         AssetRequest[]
-  auditLogs        AuditLog[]
+  id                              String                     @id @default(uuid())
+  fullName                        String
+  email                           String                     @unique
+  passwordHash                    String
+  phoneNumber                     String
+  identificationId                String                     @unique
+  department                      String?
+  bio                             String?
+  githubUrl                       String?
+  avatarUrl                       String?
+  avatarPublicId                  String?
+  role                            Role                       @default(INNOVATOR)
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
+  requests                        AssetRequest[]
+  auditLogs                       AuditLog[]
+  innovationProjects              InnovationProject[]        @relation("InnovationProjectOwner")
+  createdSupportRequests          InnovationSupportRequest[] @relation("InnovationSupportCreatedBy")
+  assignedSupportRequests         InnovationSupportRequest[] @relation("InnovationSupportAssignedTo")
+  innovationSupportAssignments    SupportAssignment[]        @relation("SupportAssignmentOwner")
+  supportRequestComments          RequestComment[]           @relation("SupportCommentAuthor")
+  supportDeliveries               SupportDelivery[]          @relation("SupportDeliveryRecorder")
+  supportFeedback                 SupportFeedback[]          @relation("SupportFeedbackAuthor")
+  innovationRequestHistoryChanges InnovationRequestHistory[] @relation("InnovationRequestHistoryChangedBy")
+  innovationProjectMemberships    InnovationProjectMember[] @relation("InnovationProjectMemberUser")
 }
 
 model Asset {
@@ -98,6 +107,129 @@ model AuditLog {
   @@index([entityType, entityId])
 }
 
+model InnovationProject {
+  id          String                     @id @default(uuid())
+  name        String                     @unique
+  description String?
+  ownerId     String
+  owner       User                       @relation("InnovationProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  requests    InnovationSupportRequest[]
+  members     InnovationProjectMember[]
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+}
+
+model InnovationProjectMember {
+  id        String             @id @default(uuid())
+  projectId String
+  userId    String
+  role      String             @default("MEMBER")
+  createdAt DateTime           @default(now())
+  project   InnovationProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User               @relation("InnovationProjectMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model InnovationSupportRequest {
+  id                   String                     @id @default(uuid())
+  referenceCode        String                     @unique
+  projectId            String
+  project              InnovationProject          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdById          String
+  createdBy            User                       @relation("InnovationSupportCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedToId         String?
+  assignedTo           User?                      @relation("InnovationSupportAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  title                String
+  description          String
+  category             InnovationRequestCategory
+  categoryDetails      Json                       @default("{}")
+  priority             InnovationRequestPriority
+  country              String
+  slaDeadline          DateTime?
+  targetDeliveryWindow String?
+  urgencyReason        String?
+  urgencyJustification String?
+  declineReason        String?
+  clarificationPrompt  String?
+  status               InnovationRequestStatus    @default(SUBMITTED)
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  history              InnovationRequestHistory[]
+  assignments          SupportAssignment[]
+  comments             RequestComment[]
+  delivery             SupportDelivery?
+  feedback             SupportFeedback?
+
+  @@index([projectId, status])
+  @@index([createdById, status])
+}
+
+model InnovationRequestHistory {
+  id             String                   @id @default(uuid())
+  requestId      String
+  request        InnovationSupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  previousStatus InnovationRequestStatus
+  newStatus      InnovationRequestStatus
+  changedById    String
+  changedBy      User                     @relation("InnovationRequestHistoryChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+  note           String?
+  createdAt      DateTime                 @default(now())
+}
+
+model SupportAssignment {
+  id          String   @id @default(uuid())
+  requestId   String
+  ownerId     String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  request     InnovationSupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  owner       User                     @relation("SupportAssignmentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+}
+
+model RequestComment {
+  id          String                @id @default(uuid())
+  requestId   String
+  authorId    String
+  content     String
+  visibility  CommentVisibility     @default(REQUESTER_VISIBLE)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  request     InnovationSupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author      User                     @relation("SupportCommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+}
+
+model SupportDelivery {
+  id             String   @id @default(uuid())
+  requestId      String   @unique
+  recorderId     String
+  summary        String
+  actualOutcome  String
+  evidenceLinks  Json     @default("[]")
+  deliveryDate   DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  request     InnovationSupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  recorder    User                     @relation("SupportDeliveryRecorder", fields: [recorderId], references: [id], onDelete: Restrict)
+}
+
+model SupportFeedback {
+  id          String   @id @default(uuid())
+  requestId   String   @unique
+  authorId    String
+  rating      Int
+  comment     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  request     InnovationSupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author      User                     @relation("SupportFeedbackAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+}
+
 enum Role {
   INNOVATOR
   ADMIN
@@ -120,4 +252,45 @@ enum RequestStatus {
   CHECKED_OUT
   RETURNED
   OVERDUE
+}
+
+enum InnovationRequestCategory {
+  BUG_FIX_ERROR_REPORT
+  DATABASE_BACKEND_SUPPORT
+  UI_UX_PROTOTYPING_DESIGN
+  ENVIRONMENT_DEPLOYMENT
+  FEATURE_ENHANCEMENT
+  GENERAL_INQUIRY_MENTORSHIP
+  COMPUTE_AI
+  DATA_RESEARCH
+  MENTORSHIP_DOMAIN_EXPERTISE
+  FIELD_VALIDATION
+  TECHNICAL_DEVELOPMENT
+  PRODUCT_BUSINESS_SUPPORT
+  OTHER
+}
+
+enum InnovationRequestPriority {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum InnovationRequestStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  NEEDS_INFO
+  APPROVED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CLOSED
+  DEFERRED
+  DECLINED
+}
+
+enum CommentVisibility {
+  REQUESTER_VISIBLE
+  INTERNAL_ONLY
 }

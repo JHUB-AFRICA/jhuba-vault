@@ -24,7 +24,16 @@ interface NavGroup {
 type Layout = 'bare' | 'public' | 'app';
 
 const ADMIN_NAV: NavGroup[] = [
+<<<<<<< HEAD
   { items: [{ label: 'Dashboard', icon: 'pi-th-large', link: '/admin/dashboard' }] },
+=======
+  {
+    items: [
+      { label: 'Dashboard', icon: 'pi-th-large', link: '/admin/dashboard' },
+      { label: 'Support Hub', icon: 'pi-headphones', link: '/app/innovation-support' }
+    ]
+  },
+>>>>>>> 83af3b4 (Updated Support Hub features)
   {
     heading: 'Operations',
     items: [
@@ -47,7 +56,12 @@ const INNOVATOR_NAV: NavGroup[] = [
   {
     items: [
       { label: 'Dashboard', icon: 'pi-th-large', link: '/app/dashboard' },
+<<<<<<< HEAD
       { label: 'Catalogue', icon: 'pi-box', link: '/catalogue', also: ['/assets/'] }
+=======
+      { label: 'Catalogue', icon: 'pi-box', link: '/catalogue', also: ['/assets/'] },
+      { label: 'Support Hub', icon: 'pi-headphones', link: '/app/innovation-support' }
+>>>>>>> 83af3b4 (Updated Support Hub features)
     ]
   },
   {

@@ -121,6 +121,9 @@ export class GlobalSearchComponent {
     this.term.set(value);
     this.open.set(true);
     if (this.mode() === 'admin') this.searching.set(value.trim().length >= 2);
+    if (this.router.url.includes('/app/innovation-support')) {
+      window.dispatchEvent(new CustomEvent('jhub-support-search', { detail: value }));
+    }
     this.input$.next(value);
   }
 

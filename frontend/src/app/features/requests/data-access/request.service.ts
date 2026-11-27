@@ -17,6 +17,28 @@ export interface AdminRequestPage {
   statusCounts?: AdminRequestCounts;
 }
 
+export interface InnovationSupportRequestSummary {
+  id: string;
+  referenceCode?: string;
+  title: string;
+  description: string;
+  category: string;
+  categoryDetails?: Record<string, unknown>;
+  priority: string;
+  country: string;
+  status: string;
+  declineReason?: string | null;
+  clarificationPrompt?: string | null;
+  assignedTo?: { id: string; fullName: string; email: string } | null;
+  comments?: Array<{ id: string; content: string; visibility: 'REQUESTER_VISIBLE' | 'INTERNAL_ONLY'; author?: { fullName: string } }>;
+
+  delivery?: { summary: string; actualOutcome: string; evidenceLinks: string[]; deliveryDate: string } | null;
+  feedback?: { rating: number; comment?: string | null } | null;
+  createdAt: string;
+  updatedAt: string;
+  project?: { id: string; name: string } | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RequestService {
   private readonly http = inject(HttpClient);
@@ -98,5 +120,46 @@ export class RequestService {
     if (filters?.dateFrom) params = params.set('dateFrom', filters.dateFrom);
     if (filters?.dateTo) params = params.set('dateTo', filters.dateTo);
     return this.http.get<ApiResponse<AdminRequestPage>>(`${API_URL}/admin/requests`, { params }).pipe(map(response => response.data));
+  }
+
+  listInnovationSupportMine(filters?: { search?: string; status?: string; category?: string; priority?: string; dateFrom?: string; dateTo?: string }): Observable<InnovationSupportRequestSummary[]> {
+    let params = new HttpParams();
+    if (filters?.search) params = params.set('q', filters.search);
+    if (filters?.status) params = params.set('status', filters.status);
+    if (filters?.category) params = params.set('category', filters.category);
+    if (filters?.priority) params = params.set('priority', filters.priority);
+    if (filters?.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) params = params.set('dateTo', filters.dateTo);
+    return this.http
+      .get<ApiResponse<InnovationSupportRequestSummary[]> | InnovationSupportRequestSummary[]>(`${API_URL}/innovation-hub/requests`, { params })
+      .pipe(map(response => Array.isArray(response) ? response : response.data));
+  }
+
+  getInnovationSupport(id: string): Observable<InnovationSupportRequestSummary> {
+    return this.http.get<ApiResponse<InnovationSupportRequestSummary>>(`${API_URL}/innovation-hub/requests/${id}`).pipe(map(response => response.data));
+  }
+
+  updateInnovationSupportStatus(id: string, status: string, options: { note?: string; declineReason?: string; clarificationPrompt?: string } = {}) {
+    return this.http.patch<ApiResponse<InnovationSupportRequestSummary>>(`${API_URL}/innovation-hub/requests/${id}/status`, { status, ...options }).pipe(map(response => response.data));
+  }
+
+  assignInnovationSupport(id: string, ownerId: string) {
+    return this.http.patch<ApiResponse<InnovationSupportRequestSummary>>(`${API_URL}/innovation-hub/requests/${id}/assign`, { ownerId }).pipe(map(response => response.data));
+  }
+
+  commentInnovationSupport(id: string, content: string, visibility: 'REQUESTER_VISIBLE' | 'INTERNAL_ONLY' = 'REQUESTER_VISIBLE') {
+    return this.http.post<ApiResponse<unknown>>(`${API_URL}/innovation-hub/requests/${id}/comments`, { content, visibility }).pipe(map(response => response.data));
+  }
+
+  respondInnovationSupport(id: string, response: string) {
+    return this.http.post<ApiResponse<InnovationSupportRequestSummary>>(`${API_URL}/innovation-hub/requests/${id}/respond`, { response }).pipe(map(result => result.data));
+  }
+
+  completeInnovationSupport(id: string, delivery: { summary: string; actualOutcome: string; deliveryDate: string; evidenceLinks: string[] }) {
+    return this.http.post<ApiResponse<InnovationSupportRequestSummary>>(`${API_URL}/innovation-hub/requests/${id}/delivery`, delivery).pipe(map(result => result.data));
+  }
+
+  feedbackInnovationSupport(id: string, rating: number, comment?: string) {
+    return this.http.post<ApiResponse<unknown>>(`${API_URL}/innovation-hub/requests/${id}/feedback`, { rating, comment }).pipe(map(result => result.data));
   }
 }

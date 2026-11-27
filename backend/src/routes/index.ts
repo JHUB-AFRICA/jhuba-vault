@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 import multer from 'multer';
-import { Prisma, RequestStatus, Role } from '@prisma/client';
+import { CommentVisibility, InnovationRequestCategory, InnovationRequestPriority, InnovationRequestStatus, Prisma, RequestStatus, Role } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { HttpError } from '../middleware/errors';
 import { requireAuth, requireRole } from '../middleware/auth';
@@ -19,6 +19,30 @@ const admin = [requireAuth, requireRole(Role.ADMIN)];
 const innovator = [requireAuth, requireRole(Role.INNOVATOR)];
 const publicUser = (user: { passwordHash: string } & Record<string, unknown>) => { const { passwordHash: _passwordHash, ...safe } = user; return safe; };
 const publicAsset = <T extends { imagePublicId?: string | null }>(asset: T): Omit<T, 'imagePublicId'> => { const { imagePublicId: _imagePublicId, ...safe } = asset; return safe; };
+
+const supportTransitionAllowed: Record<InnovationRequestStatus, InnovationRequestStatus[]> = {
+  SUBMITTED: [InnovationRequestStatus.UNDER_REVIEW],
+  UNDER_REVIEW: [InnovationRequestStatus.NEEDS_INFO, InnovationRequestStatus.DECLINED, InnovationRequestStatus.DEFERRED, InnovationRequestStatus.APPROVED],
+  NEEDS_INFO: [InnovationRequestStatus.UNDER_REVIEW],
+  APPROVED: [InnovationRequestStatus.ASSIGNED],
+  ASSIGNED: [InnovationRequestStatus.IN_PROGRESS],
+  IN_PROGRESS: [InnovationRequestStatus.COMPLETED],
+  COMPLETED: [InnovationRequestStatus.CLOSED],
+  CLOSED: [],
+  DEFERRED: [InnovationRequestStatus.UNDER_REVIEW],
+  DECLINED: [InnovationRequestStatus.CLOSED]
+};
+
+async function nextSupportReference(prismaDb: Prisma.TransactionClient | typeof prisma): Promise<string> {
+  const year = new Date().getFullYear();
+  const count = await prismaDb.innovationSupportRequest.count({ where: { referenceCode: { startsWith: `ISH-${year}-` } } });
+  return `ISH-${year}-${String(count + 1).padStart(4, '0')}`;
+}
+
+const safeEvidenceLinks = (value: unknown): string[] => Array.isArray(value)
+  ? value.filter((item): item is string => typeof item === 'string' && /^https?:\/\//i.test(item.trim())).map(item => item.trim()).slice(0, 20)
+  : [];
+
 const includeRequest = { innovator: { select: { id: true, fullName: true, email: true, phoneNumber: true, identificationId: true, department: true, role: true } }, teamMembers: true, requestItems: { include: { asset: true } } } as const satisfies Prisma.AssetRequestInclude;
 
 async function createRequestForInnovator(input: ReturnType<typeof requestSchema.parse>, innovatorId: string, actorId?: string) {
@@ -360,5 +384,256 @@ router.post('/uploads/assets/:id/image', ...admin, upload.single('file'), valida
 });
 router.delete('/uploads/assets/:id/image', ...admin, async (req, res) => { const asset = await prisma.asset.findUnique({ where: { id: req.params.id } }); if (!asset) throw new HttpError(404, 'ASSET_NOT_FOUND', 'Asset not found'); if (asset.imagePublicId) await deleteImage(asset.imagePublicId); const updated = await prisma.asset.update({ where: { id: asset.id }, data: { imageUrl: null, imagePublicId: null } }); await audit(prisma, req.auth!.userId, 'ASSET_IMAGE_REMOVED', 'Asset', asset.id); res.json({ success: true, data: publicAsset(updated) }); });
 router.patch('/admin/requests/:id/items/:itemId', ...admin, async (req, res) => { const quantity = Number(req.body.quantity); if (!Number.isInteger(quantity) || quantity < 1) throw new HttpError(422, 'INVALID_QUANTITY', 'Quantity must be a positive integer'); const updated = await prisma.$transaction(async tx => { const request = await tx.assetRequest.findUnique({ where: { id: req.params.id } }); if (!request || request.status !== RequestStatus.PENDING) throw new HttpError(409, 'INVALID_STATUS', 'Only pending requests can be modified'); const item = await tx.requestItem.findFirst({ where: { id: req.params.itemId, requestId: request.id } }); if (!item) throw new HttpError(404, 'REQUEST_ITEM_NOT_FOUND', 'Request item not found'); const asset = await tx.asset.findUnique({ where: { id: item.assetId } }); if (!asset || quantity > asset.availableQty) throw new HttpError(409, 'INSUFFICIENT_INVENTORY', 'Requested quantity is unavailable'); const result = await tx.requestItem.update({ where: { id: item.id }, data: { quantity }, include: { asset: true } }); await audit(tx, req.auth!.userId, 'REQUEST_QUANTITY_MODIFIED', 'RequestItem', item.id, { quantity }); return result; }); res.json({ success: true, data: updated }); });
+
+router.get('/innovation-hub/projects', requireAuth, async (req, res) => {
+  const projects = req.auth!.role === Role.ADMIN
+    ? await prisma.innovationProject.findMany({ orderBy: { createdAt: 'desc' }, include: { owner: { select: { id: true, fullName: true, email: true } } } })
+    : await prisma.innovationProject.findMany({
+        where: { OR: [{ ownerId: req.auth!.userId }, { members: { some: { userId: req.auth!.userId } } }] },
+        orderBy: { createdAt: 'desc' },
+        include: { owner: { select: { id: true, fullName: true, email: true } } }
+      });
+  res.json(projects);
+});
+
+router.get('/innovation-hub/requests', requireAuth, async (req, res) => {
+  const search = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  const statusFilter = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : '';
+  const categoryFilter = typeof req.query.category === 'string' ? req.query.category.toUpperCase() : '';
+  const priorityFilter = typeof req.query.priority === 'string' ? req.query.priority.toUpperCase() : '';
+  const dateFrom = typeof req.query.dateFrom === 'string' ? new Date(req.query.dateFrom) : null;
+  const dateTo = typeof req.query.dateTo === 'string' ? new Date(req.query.dateTo) : null;
+
+  const status = Object.values(InnovationRequestStatus).find(value => value === statusFilter);
+  const category = Object.values(InnovationRequestCategory).find(value => value === categoryFilter);
+  const priority = Object.values(InnovationRequestPriority).find(value => value === priorityFilter);
+  const dateFilter = dateFrom && dateTo && !Number.isNaN(dateFrom.getTime()) && !Number.isNaN(dateTo.getTime())
+    ? { gte: dateFrom, lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) }
+    : undefined;
+
+  const textConditions: Prisma.InnovationSupportRequestWhereInput = search ? {
+    OR: [
+      { referenceCode: { contains: search, mode: 'insensitive' } },
+      { id: { contains: search, mode: 'insensitive' } },
+      { title: { contains: search, mode: 'insensitive' } },
+      { description: { contains: search, mode: 'insensitive' } },
+      { country: { contains: search, mode: 'insensitive' } },
+      { project: { name: { contains: search, mode: 'insensitive' } } },
+      { createdBy: { OR: [{ fullName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }] } }
+    ]
+  } : {};
+
+  const requests = await prisma.innovationSupportRequest.findMany({
+    where: {
+      ...textConditions,
+      ...(status ? { status } : {}),
+      ...(category ? { category } : {}),
+      ...(priority ? { priority } : {}),
+      ...(dateFilter ? { createdAt: dateFilter } : {}),
+      ...(req.auth!.role === Role.ADMIN ? {} : { createdById: req.auth!.userId })
+    },
+    include: {
+      project: { include: { owner: { select: { id: true, fullName: true, email: true } }, members: { include: { user: { select: { id: true, fullName: true, email: true } } } } } },
+      createdBy: { select: { id: true, fullName: true, email: true } },
+      assignedTo: { select: { id: true, fullName: true, email: true } },
+      assignments: { include: { owner: { select: { id: true, fullName: true, email: true } } }, orderBy: { createdAt: 'desc' } },
+      comments: { where: req.auth!.role === Role.ADMIN ? {} : { visibility: CommentVisibility.REQUESTER_VISIBLE }, include: { author: { select: { id: true, fullName: true, email: true } } }, orderBy: { createdAt: 'asc' } },
+      delivery: true,
+      feedback: true,
+      history: { include: { changedBy: { select: { id: true, fullName: true } } }, orderBy: { createdAt: 'desc' } }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(requests);
+});
+
+
+router.post('/innovation-hub/requests', requireAuth, async (req, res) => {
+  const body = req.body ?? {};
+  const projectId = typeof body.projectId === 'string' ? body.projectId.trim() : '';
+  const projectName = typeof body.projectName === 'string' ? body.projectName.trim() : '';
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const description = typeof body.description === 'string' ? body.description.trim() : '';
+  const country = typeof body.country === 'string' && body.country.trim() ? body.country.trim() : 'Not specified';
+  if (!title || !description || (!projectId && !projectName)) throw new HttpError(422, 'INVALID_SUPPORT_REQUEST', 'Project, title, and description are required');
+
+  const categoryValue = typeof body.category === 'string' ? body.category.toUpperCase() : '';
+  const priorityValue = typeof body.priority === 'string' ? body.priority.toUpperCase() : 'MEDIUM';
+  const category = Object.values(InnovationRequestCategory).includes(categoryValue as InnovationRequestCategory) ? categoryValue as InnovationRequestCategory : InnovationRequestCategory.OTHER;
+  const priority = Object.values(InnovationRequestPriority).includes(priorityValue as InnovationRequestPriority) ? priorityValue as InnovationRequestPriority : InnovationRequestPriority.MEDIUM;
+  if (priority === InnovationRequestPriority.URGENT && (!body.urgencyReason?.trim?.() || !body.urgencyJustification?.trim?.())) throw new HttpError(422, 'URGENT_DETAILS_REQUIRED', 'Urgent requests require a reason and justification');
+
+  const created = await prisma.$transaction(async tx => {
+    let project;
+    if (projectId) {
+      project = await tx.innovationProject.findFirst({ where: { id: projectId, OR: [{ ownerId: req.auth!.userId }, { members: { some: { userId: req.auth!.userId } } }] } });
+      if (!project) throw new HttpError(403, 'PROJECT_ACCESS_DENIED', 'You do not own or belong to this project');
+    } else {
+      project = await tx.innovationProject.upsert({
+        where: { name: projectName },
+        update: {},
+        create: { name: projectName, description: 'Created from the Support Hub.', ownerId: req.auth!.userId }
+      });
+      if (project.ownerId !== req.auth!.userId) throw new HttpError(403, 'PROJECT_ACCESS_DENIED', 'You do not own this project');
+    }
+
+    const referenceCode = await nextSupportReference(tx);
+    return tx.innovationSupportRequest.create({
+      data: {
+        referenceCode,
+        projectId: project.id,
+        createdById: req.auth!.userId,
+        title,
+        description,
+        category,
+        categoryDetails: typeof body.categoryDetails === 'object' && body.categoryDetails !== null ? body.categoryDetails : {},
+        priority,
+        country,
+        slaDeadline: body.slaDeadline ? new Date(body.slaDeadline) : null,
+        targetDeliveryWindow: typeof body.targetDeliveryWindow === 'string' ? body.targetDeliveryWindow.trim() || null : null,
+        urgencyReason: priority === InnovationRequestPriority.URGENT ? String(body.urgencyReason).trim() : null,
+        urgencyJustification: priority === InnovationRequestPriority.URGENT ? String(body.urgencyJustification).trim() : null,
+        status: InnovationRequestStatus.SUBMITTED
+      },
+      include: { project: true, createdBy: { select: { id: true, fullName: true, email: true } } }
+    });
+  });
+  await audit(prisma, req.auth!.userId, 'INNOVATION_SUPPORT_REQUEST_CREATED', 'InnovationSupportRequest', created.id, { referenceCode: created.referenceCode, projectId: created.projectId, category: created.category, priority: created.priority });
+  res.status(201).json({ success: true, id: created.id, data: created });
+});
+
+router.patch('/innovation-hub/requests/:id/status', ...admin, async (req, res) => {
+  const id = routeId(req);
+  const status = typeof req.body.status === 'string' ? req.body.status.toUpperCase() as InnovationRequestStatus : undefined;
+  if (!status || !Object.values(InnovationRequestStatus).includes(status)) throw new HttpError(422, 'INVALID_STATUS', 'Invalid support request status');
+  const note = typeof req.body.note === 'string' ? req.body.note.trim() : '';
+  const declineReason = typeof req.body.declineReason === 'string' ? req.body.declineReason.trim() : '';
+  const clarificationPrompt = typeof req.body.clarificationPrompt === 'string' ? req.body.clarificationPrompt.trim() : '';
+  const current = await prisma.innovationSupportRequest.findUnique({ where: { id } });
+  if (!current) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (!(supportTransitionAllowed[current.status] ?? []).includes(status)) throw new HttpError(409, 'INVALID_STATUS_TRANSITION', `Cannot move support request from ${current.status} to ${status}`);
+  if (current.status === InnovationRequestStatus.COMPLETED && status === InnovationRequestStatus.CLOSED) {
+    const delivery = await prisma.supportDelivery.findUnique({ where: { requestId: id } });
+    if (!delivery) throw new HttpError(409, 'DELIVERY_REQUIRED', 'Capture delivery and outcome before closing the request');
+  }
+  if (status === InnovationRequestStatus.DECLINED && !declineReason) throw new HttpError(422, 'DECLINE_REASON_REQUIRED', 'A decline reason is required');
+  if (status === InnovationRequestStatus.NEEDS_INFO && !clarificationPrompt) throw new HttpError(422, 'CLARIFICATION_PROMPT_REQUIRED', 'A clarification prompt is required');
+
+  const updated = await prisma.$transaction(async tx => {
+    const result = await tx.innovationSupportRequest.update({
+      where: { id },
+      data: {
+        status,
+        ...(status === InnovationRequestStatus.DECLINED ? { declineReason } : {}),
+        ...(status === InnovationRequestStatus.NEEDS_INFO ? { clarificationPrompt } : {})
+      }
+    });
+    await tx.innovationRequestHistory.create({ data: { requestId: id, previousStatus: current.status, newStatus: status, changedById: req.auth!.userId, note: note || null } });
+    await audit(tx, req.auth!.userId, 'INNOVATION_SUPPORT_REQUEST_STATUS_CHANGED', 'InnovationSupportRequest', id, { previousStatus: current.status, newStatus: status, declineReason: status === InnovationRequestStatus.DECLINED ? declineReason : undefined, clarificationPrompt: status === InnovationRequestStatus.NEEDS_INFO ? clarificationPrompt : undefined });
+    return result;
+  });
+  res.json({ success: true, data: updated });
+});
+
+router.get('/innovation-hub/requests/:id', requireAuth, async (req, res) => {
+  const request = await prisma.innovationSupportRequest.findUnique({
+    where: { id: routeId(req) },
+    include: {
+      project: true,
+      createdBy: { select: { id: true, fullName: true, email: true } },
+      assignedTo: { select: { id: true, fullName: true, email: true } },
+      assignments: { include: { owner: { select: { id: true, fullName: true, email: true } } } },
+      comments: { where: req.auth!.role === Role.ADMIN ? {} : { visibility: CommentVisibility.REQUESTER_VISIBLE }, include: { author: { select: { id: true, fullName: true, email: true } } }, orderBy: { createdAt: 'asc' } },
+      delivery: true,
+      feedback: true,
+      history: { include: { changedBy: { select: { id: true, fullName: true } } }, orderBy: { createdAt: 'desc' } }
+    }
+  });
+  if (!request) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (req.auth!.role !== Role.ADMIN && request.createdById !== req.auth!.userId) throw new HttpError(403, 'SUPPORT_REQUEST_ACCESS_DENIED', 'You cannot view this support request');
+  res.json({ success: true, data: request });
+});
+
+router.patch('/innovation-hub/requests/:id/assign', ...admin, async (req, res) => {
+  const ownerId = typeof req.body.ownerId === 'string' ? req.body.ownerId.trim() : '';
+  if (!ownerId) throw new HttpError(422, 'OWNER_REQUIRED', 'A support owner is required');
+  const owner = await prisma.user.findUnique({ where: { id: ownerId }, select: { id: true, role: true } });
+  if (!owner || owner.role !== Role.ADMIN) throw new HttpError(422, 'INVALID_SUPPORT_OWNER', 'Assignment owner must be an administrator/support user');
+  const id = routeId(req);
+  const current = await prisma.innovationSupportRequest.findUnique({ where: { id } });
+  if (!current) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (current.status !== InnovationRequestStatus.APPROVED) throw new HttpError(409, 'INVALID_STATUS_TRANSITION', 'Only approved requests can be assigned');
+  const updated = await prisma.$transaction(async tx => {
+    await tx.supportAssignment.create({ data: { requestId: id, ownerId, status: 'ASSIGNED' } });
+    const result = await tx.innovationSupportRequest.update({ where: { id }, data: { assignedToId: ownerId, status: InnovationRequestStatus.ASSIGNED } });
+    await tx.innovationRequestHistory.create({ data: { requestId: id, previousStatus: current.status, newStatus: InnovationRequestStatus.ASSIGNED, changedById: req.auth!.userId, note: 'Support owner assigned' } });
+    await audit(tx, req.auth!.userId, 'INNOVATION_SUPPORT_REQUEST_ASSIGNED', 'InnovationSupportRequest', id, { ownerId });
+    return result;
+  });
+  res.json({ success: true, data: updated });
+});
+
+router.post('/innovation-hub/requests/:id/comments', requireAuth, async (req, res) => {
+  const id = routeId(req);
+  const content = typeof req.body.content === 'string' ? req.body.content.trim() : '';
+  if (!content) throw new HttpError(422, 'COMMENT_REQUIRED', 'Comment content is required');
+  const request = await prisma.innovationSupportRequest.findUnique({ where: { id } });
+  if (!request) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (req.auth!.role !== Role.ADMIN && request.createdById !== req.auth!.userId) throw new HttpError(403, 'SUPPORT_REQUEST_ACCESS_DENIED', 'You cannot comment on this request');
+  const visibility = req.auth!.role === Role.ADMIN && req.body.visibility === 'INTERNAL_ONLY' ? CommentVisibility.INTERNAL_ONLY : CommentVisibility.REQUESTER_VISIBLE;
+  const comment = await prisma.requestComment.create({ data: { requestId: id, authorId: req.auth!.userId, content, visibility } });
+  await audit(prisma, req.auth!.userId, 'INNOVATION_SUPPORT_REQUEST_COMMENTED', 'InnovationSupportRequest', id, { commentId: comment.id, visibility });
+  res.status(201).json({ success: true, data: req.auth!.role === Role.ADMIN ? comment : visibility === CommentVisibility.REQUESTER_VISIBLE ? comment : null });
+});
+router.post('/innovation-hub/requests/:id/respond', ...innovator, async (req, res) => {
+  const id = routeId(req);
+  const response = typeof req.body.response === 'string' ? req.body.response.trim() : '';
+  if (!response) throw new HttpError(422, 'RESPONSE_REQUIRED', 'A clarification response is required');
+  const current = await prisma.innovationSupportRequest.findUnique({ where: { id } });
+  if (!current) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (current.createdById !== req.auth!.userId) throw new HttpError(403, 'SUPPORT_REQUEST_ACCESS_DENIED', 'You cannot respond to this request');
+  if (current.status !== InnovationRequestStatus.NEEDS_INFO) throw new HttpError(409, 'INVALID_STATUS_TRANSITION', 'Clarification response is only valid while information is requested');
+  const updated = await prisma.$transaction(async tx => {
+    const result = await tx.innovationSupportRequest.update({ where: { id }, data: { status: InnovationRequestStatus.UNDER_REVIEW } });
+    await tx.requestComment.create({ data: { requestId: id, authorId: req.auth!.userId, content: response, visibility: CommentVisibility.REQUESTER_VISIBLE } });
+    await tx.innovationRequestHistory.create({ data: { requestId: id, previousStatus: InnovationRequestStatus.NEEDS_INFO, newStatus: InnovationRequestStatus.UNDER_REVIEW, changedById: req.auth!.userId, note: 'Innovator provided requested information' } });
+    await audit(tx, req.auth!.userId, 'INNOVATION_SUPPORT_REQUEST_INFORMATION_RESPONDED', 'InnovationSupportRequest', id, { response });
+    return result;
+  });
+  res.json({ success: true, data: updated });
+});
+router.post('/innovation-hub/requests/:id/delivery', ...admin, async (req, res) => {
+  const id = routeId(req);
+  const summary = typeof req.body.summary === 'string' ? req.body.summary.trim() : '';
+  const actualOutcome = typeof req.body.actualOutcome === 'string' ? req.body.actualOutcome.trim() : '';
+  const deliveryDate = req.body.deliveryDate ? new Date(req.body.deliveryDate) : new Date();
+  if (!summary || !actualOutcome || Number.isNaN(deliveryDate.getTime())) throw new HttpError(422, 'INVALID_DELIVERY', 'Delivery summary, actual outcome, and a valid delivery date are required');
+  const evidenceLinks = safeEvidenceLinks(req.body.evidenceLinks);
+  const current = await prisma.innovationSupportRequest.findUnique({ where: { id } });
+  if (!current) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (current.status !== InnovationRequestStatus.IN_PROGRESS) throw new HttpError(409, 'INVALID_STATUS_TRANSITION', 'Delivery can only be captured while in progress');
+  const updated = await prisma.$transaction(async tx => {
+    await tx.supportDelivery.create({ data: { requestId: id, recorderId: req.auth!.userId, summary, actualOutcome, evidenceLinks, deliveryDate } });
+    const result = await tx.innovationSupportRequest.update({ where: { id }, data: { status: InnovationRequestStatus.COMPLETED } });
+    await tx.innovationRequestHistory.create({ data: { requestId: id, previousStatus: current.status, newStatus: InnovationRequestStatus.COMPLETED, changedById: req.auth!.userId, note: 'Delivery completed and outcome captured' } });
+    await audit(tx, req.auth!.userId, 'INNOVATION_SUPPORT_REQUEST_COMPLETED', 'InnovationSupportRequest', id, { deliveryDate, evidenceLinkCount: evidenceLinks.length });
+    return result;
+  });
+  res.json({ success: true, data: updated });
+});
+router.post('/innovation-hub/requests/:id/feedback', ...innovator, async (req, res) => {
+  const id = routeId(req);
+  const rating = Number(req.body.rating);
+  const comment = typeof req.body.comment === 'string' ? req.body.comment.trim() : null;
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new HttpError(422, 'INVALID_RATING', 'Rating must be an integer from 1 to 5');
+  const current = await prisma.innovationSupportRequest.findUnique({ where: { id }, include: { feedback: true } });
+  if (!current) throw new HttpError(404, 'SUPPORT_REQUEST_NOT_FOUND', 'Support request not found');
+  if (current.createdById !== req.auth!.userId) throw new HttpError(403, 'SUPPORT_REQUEST_ACCESS_DENIED', 'You cannot submit feedback for this request');
+  if (!['COMPLETED', 'CLOSED'].includes(current.status)) throw new HttpError(409, 'FEEDBACK_NOT_AVAILABLE', 'Feedback is available after completion');
+  if (current.feedback) throw new HttpError(409, 'FEEDBACK_ALREADY_SUBMITTED', 'Feedback has already been submitted');
+  const feedback = await prisma.supportFeedback.create({ data: { requestId: id, authorId: req.auth!.userId, rating, comment } });
+  await audit(prisma, req.auth!.userId, 'INNOVATION_SUPPORT_REQUEST_FEEDBACK_SUBMITTED', 'InnovationSupportRequest', id, { rating });
+  res.status(201).json({ success: true, data: feedback });
+});
 
 export default router;

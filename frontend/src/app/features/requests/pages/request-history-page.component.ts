@@ -1,13 +1,14 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { RequestService } from '../data-access/request.service';
+import { InnovationSupportRequestSummary, RequestService } from '../data-access/request.service';
 import { AssetRequest, RequestStatus } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
 import { PageHeaderComponent } from '../../../shared/ui/page-header.component';
 import { ReqRefPipe } from '../../../shared/ui/req-ref.pipe';
 import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component';
 import { statusLabel } from '../../../shared/ui/format';
+import { forkJoin, of } from 'rxjs';
 
 type Filter = 'ALL' | RequestStatus;
 
@@ -25,6 +26,7 @@ export class RequestHistoryPageComponent {
   protected readonly loansView = inject(ActivatedRoute).snapshot.data['view'] === 'loans';
 
   protected readonly requests = signal<AssetRequest[]>([]);
+  protected readonly supportRequests = signal<InnovationSupportRequestSummary[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly filter = signal<Filter>('ALL');
@@ -57,9 +59,13 @@ export class RequestHistoryPageComponent {
   protected load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.service.listAllMine().subscribe({
-      next: requests => {
-        this.requests.set(requests);
+    forkJoin({
+      assetRequests: this.loansView ? this.service.listAllMine() : this.service.listAllMine(),
+      supportRequests: this.loansView ? of([] as InnovationSupportRequestSummary[]) : this.service.listInnovationSupportMine()
+    }).subscribe({
+      next: ({ assetRequests, supportRequests }) => {
+        this.requests.set(assetRequests);
+        this.supportRequests.set(supportRequests);
         this.loading.set(false);
       },
       error: () => {
@@ -71,5 +77,16 @@ export class RequestHistoryPageComponent {
 
   protected itemSummary(request: AssetRequest): string {
     return request.requestItems.map(item => `${item.asset.name} × ${item.quantity}`).join(', ') || '—';
+  }
+
+  protected supportItemSummary(request: InnovationSupportRequestSummary): string {
+    return `${request.category.replaceAll('_', ' ')} · ${request.priority}`;
+  }
+
+  protected supportStatusLabel(status: string): string {
+    return status
+      .replaceAll('_', ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, character => character.toUpperCase());
   }
 }

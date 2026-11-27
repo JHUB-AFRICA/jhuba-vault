@@ -24,7 +24,13 @@ export const AuthStore = signalStore(
       patchState(store, { hydrating: true, loading: true, error: null });
       hydration$ = authService.me().pipe(
         tap(user => patchState(store, { user })),
-        catchError(() => { localStorage.removeItem('jhub_access_token'); patchState(store, { user: null }); return of(null); }),
+        catchError((error: unknown) => {
+          if (error instanceof HttpErrorResponse && error.status === 401) {
+            localStorage.removeItem('jhub_access_token');
+            patchState(store, { user: null });
+          }
+          return of(null);
+        }),
         finalize(() => { patchState(store, { hydrated: true, hydrating: false, loading: false }); hydration$ = null; }),
         shareReplay({ bufferSize: 1, refCount: false })
       );

@@ -1570,3 +1570,22 @@ button.stat:hover {
     font-size: var(--fs-2xl);
   }
 }
+
+.btn-primary,
+button[class*='bg-[#0e3d9e'],
+button[class*='bg-[#0f4fc4'],
+button[class*='bg-blue'],
+button[class*='bg-navy'] {
+  color: #fff !important;
+}
+
+.btn-primary .pi,
+button[class*='bg-[#0e3d9e'] .pi,
+button[class*='bg-[#0f4fc4'] .pi,
+button[class*='bg-blue'] .pi,
+button[class*='bg-navy'] .pi,
+.btn-primary *,
+button[class*='bg-[#0e3d9e'] *,
+button[class*='bg-[#0f4fc4'] * {
+  color: #fff !important;
+}
