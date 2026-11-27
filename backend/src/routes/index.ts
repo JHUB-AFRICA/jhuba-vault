@@ -2,16 +2,19 @@ import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 import multer from 'multer';
 import { Prisma, RequestStatus, Role } from '@prisma/client';
-import { prisma } from '../config/prisma';
+import { prisma, withDatabaseTimeout } from '../config/prisma';
 import { HttpError } from '../middleware/errors';
 import { requireAuth, requireRole } from '../middleware/auth';
-import { adminRequestQuery, adminSearchQuery, assetSchema, kenyanPhoneNumberSchema, loginSchema, registerSchema, rejectSchema, requestSchema, statusQuery } from '../validators/schemas';
+import { adminRequestQuery, adminRequestSchema, adminSearchQuery, assetSchema, kenyanPhoneNumberSchema, loginSchema, registerSchema, rejectSchema, requestSchema, statusQuery } from '../validators/schemas';
 import { signToken } from '../utils/jwt';
 import { audit } from '../services/audit.service';
 import { sendApprovalEmail } from '../services/mail.service';
 import { markOverdueRequests } from '../services/overdue.service';
 import { deleteImage, uploadImage } from '../services/media.service';
 import { isSupportedImageFile } from '../services/image-validation';
+import { listAssets } from '../services/asset.service';
+import { createRequestForInnovator, getRequestById, getRequestForInnovator, includeRequest, listInnovatorRequests } from '../services/request.service';
+import assistantRouter from './ai.routes';
 
 const router = Router();
 const routeId = (req: Request): string => { const value = req.params.id; return Array.isArray(value) ? value[0] : value; };
@@ -19,41 +22,9 @@ const admin = [requireAuth, requireRole(Role.ADMIN)];
 const innovator = [requireAuth, requireRole(Role.INNOVATOR)];
 const publicUser = (user: { passwordHash: string } & Record<string, unknown>) => { const { passwordHash: _passwordHash, ...safe } = user; return safe; };
 const publicAsset = <T extends { imagePublicId?: string | null }>(asset: T): Omit<T, 'imagePublicId'> => { const { imagePublicId: _imagePublicId, ...safe } = asset; return safe; };
-const includeRequest = { innovator: { select: { id: true, fullName: true, email: true, phoneNumber: true, identificationId: true, department: true, role: true } }, teamMembers: true, requestItems: { include: { asset: true } } } as const satisfies Prisma.AssetRequestInclude;
+router.use('/ai', assistantRouter);
 
-async function createRequestForInnovator(input: ReturnType<typeof requestSchema.parse>, innovatorId: string, actorId?: string) {
-  const assetIds = input.items.map(item => item.assetId);
-  if (new Set(assetIds).size !== assetIds.length) throw new HttpError(422, 'DUPLICATE_ASSET', 'Each asset may only appear once in a request');
-  const expectedReturn = new Date(input.startDate);
-  expectedReturn.setDate(expectedReturn.getDate() + input.loanDays);
-  return prisma.$transaction(async tx => {
-    const innovator = await tx.user.findUnique({ where: { id: innovatorId }, select: { id: true, role: true } });
-    if (!innovator || innovator.role !== Role.INNOVATOR) throw new HttpError(404, 'INNOVATOR_NOT_FOUND', 'Innovator not found');
-    const assets = await tx.asset.findMany({ where: { id: { in: assetIds } } });
-    if (assets.length !== input.items.length) throw new HttpError(404, 'ASSET_NOT_FOUND', 'One or more assets were not found');
-    for (const item of input.items) {
-      const asset = assets.find(candidate => candidate.id === item.assetId)!;
-      if (item.quantity > asset.availableQty) throw new HttpError(409, 'INSUFFICIENT_INVENTORY', `Insufficient inventory for ${asset.name}`);
-    }
-    const created = await tx.assetRequest.create({
-      data: {
-        projectName: input.projectName,
-        projectAbstract: input.projectAbstract,
-        loanDays: input.loanDays,
-        startDate: input.startDate,
-        expectedReturn,
-        innovatorId,
-        teamMembers: { create: input.teamMembers },
-        requestItems: { create: input.items }
-      },
-      include: includeRequest
-    });
-    if (actorId) await audit(tx, actorId, 'ADMIN_REQUEST_CREATED', 'AssetRequest', created.id, { innovatorId });
-    return created;
-  });
-}
-
-router.get('/health', async (_req, res) => { await prisma.$queryRaw`SELECT 1`; res.json({ success: true, data: { status: 'ok', service: 'jhub-africa-vault-api' } }); });
+router.get('/health', async (_req, res) => { try { await withDatabaseTimeout(prisma.$queryRaw`SELECT 1`); res.json({ success: true, data: { status: 'ok', service: 'jhub-africa-vault-api' } }); } catch (error) { console.error('Database health check failed', error); res.status(503).json({ success: false, message: 'Unable to load inventory. Please try again.', error: 'DATABASE_UNAVAILABLE' }); } });
 
 router.post('/auth/register', async (req, res) => { const input = registerSchema.parse(req.body); const { password: _password, ...profile } = input; const passwordHash = await bcrypt.hash(input.password, 12); try { const user = await prisma.user.create({ data: { ...profile, passwordHash }, select: { id: true, fullName: true, email: true, phoneNumber: true, identificationId: true, department: true, bio: true, githubUrl: true, avatarUrl: true, role: true, createdAt: true, updatedAt: true } }); res.status(201).json({ success: true, data: { user, token: signToken(user.id, user.role) } }); } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new HttpError(409, 'DUPLICATE_USER', 'Email or identification number already exists'); throw error; } });
 router.post('/auth/login', async (req, res) => { const input = loginSchema.parse(req.body); const user = await prisma.user.findUnique({ where: { email: input.email } }); if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) throw new HttpError(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect'); res.json({ success: true, data: { user: publicUser(user), token: signToken(user.id, user.role) } }); });
@@ -62,7 +33,7 @@ router.get('/auth/me', requireAuth, async (req, res) => { const user = await pri
 router.get('/users/me', requireAuth, async (req, res) => { const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } }); if (!user) throw new HttpError(404, 'USER_NOT_FOUND', 'User not found'); res.json({ success: true, data: publicUser(user) }); });
 router.patch('/users/me', requireAuth, async (req, res) => { const body = req.body as Record<string, unknown>; const allowed = ['fullName', 'phoneNumber', 'identificationId', 'department', 'bio', 'githubUrl', 'avatarUrl']; const data = Object.fromEntries(Object.entries(body).filter(([key]) => allowed.includes(key))); if (body.phoneNumber !== undefined) data.phoneNumber = kenyanPhoneNumberSchema.parse(body.phoneNumber); try { const user = await prisma.user.update({ where: { id: req.auth!.userId }, data }); res.json({ success: true, data: publicUser(user) }); } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new HttpError(409, 'DUPLICATE_IDENTIFICATION', 'Identification number already exists'); throw error; } });
 
-router.get('/assets', async (req, res) => { const search = typeof req.query.search === 'string' ? req.query.search : undefined; const category = typeof req.query.category === 'string' ? req.query.category : undefined; const availability = typeof req.query.availability === 'string' ? req.query.availability : undefined; const assets = await prisma.asset.findMany({ where: { ...(category ? { category: category as never } : {}), ...(availability === 'IN_STOCK' ? { availableQty: { gt: 0 } } : availability === 'CHECKED_OUT' ? { availableQty: 0 } : {}), ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { assetTag: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }] } : {}) }, orderBy: { name: 'asc' } }); res.json({ success: true, data: assets.map(asset => publicAsset(asset)) }); });
+router.get('/assets', async (req, res) => { const search = typeof req.query.search === 'string' ? req.query.search : undefined; const category = typeof req.query.category === 'string' ? req.query.category : undefined; const availability = typeof req.query.availability === 'string' ? req.query.availability : undefined; const assets = await listAssets({ search, category, availability }); res.json({ success: true, data: assets.map(asset => publicAsset(asset)) }); });
 router.get('/assets/:id', async (req, res) => { const asset = await prisma.asset.findUnique({ where: { id: req.params.id } }); if (!asset) throw new HttpError(404, 'ASSET_NOT_FOUND', 'Asset not found'); res.json({ success: true, data: publicAsset(asset) }); });
 router.post('/assets', ...admin, async (req, res) => { const input = assetSchema.parse(req.body); const asset = await prisma.asset.create({ data: input }); await audit(prisma, req.auth!.userId, 'ASSET_CREATED', 'Asset', asset.id, { assetTag: asset.assetTag }); res.status(201).json({ success: true, data: asset }); });
 router.patch('/assets/:id', ...admin, async (req, res) => { const id = routeId(req); const input = assetSchema.partial().parse(req.body); const current = await prisma.asset.findUnique({ where: { id } }); if (!current) throw new HttpError(404, 'ASSET_NOT_FOUND', 'Asset not found'); if (input.availableQty !== undefined && input.availableQty > (input.totalQuantity ?? current.totalQuantity)) throw new HttpError(422, 'INVALID_INVENTORY', 'Available quantity cannot exceed total quantity'); const asset = await prisma.asset.update({ where: { id }, data: input }); await audit(prisma, req.auth!.userId, 'ASSET_UPDATED', 'Asset', asset.id, input as Prisma.InputJsonValue); res.json({ success: true, data: asset }); });
@@ -77,8 +48,21 @@ router.post('/admin/requests', ...admin, async (req, res) => {
   const created = await createRequestForInnovator(input, input.innovatorId, req.auth!.userId);
   res.status(201).json({ success: true, data: created });
 });
-router.get('/requests', ...innovator, async (req, res) => { const query = statusQuery.parse(req.query); const where = { innovatorId: req.auth!.userId, ...(query.status ? { status: query.status } : {}) }; const [items, total] = await prisma.$transaction([prisma.assetRequest.findMany({ where, include: { requestItems: { include: { asset: true } }, teamMembers: true }, orderBy: { createdAt: 'desc' }, skip: (query.page - 1) * query.limit, take: query.limit }), prisma.assetRequest.count({ where })]); res.json({ success: true, data: { items, page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) } }); });
-router.get('/requests/:id', requireAuth, async (req, res) => { const request = await prisma.assetRequest.findUnique({ where: { id: req.params.id }, include: includeRequest }); if (!request || (req.auth!.role !== Role.ADMIN && request.innovatorId !== req.auth!.userId)) throw new HttpError(404, 'REQUEST_NOT_FOUND', 'Request not found'); res.json({ success: true, data: request }); });
+router.get('/requests', ...innovator, async (req, res) => {
+  const query = statusQuery.parse(req.query);
+  const { items, total } = await listInnovatorRequests(req.auth!.userId, query);
+  res.json({
+    success: true,
+    data: {
+      items,
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.ceil(total / query.limit)
+    }
+  });
+});
+router.get('/requests/:id', requireAuth, async (req, res) => { const request = req.auth!.role === Role.ADMIN ? await getRequestById(req.params.id) : await getRequestForInnovator(req.params.id, req.auth!.userId); if (!request) throw new HttpError(404, 'REQUEST_NOT_FOUND', 'Request not found'); res.json({ success: true, data: request }); });
 
 router.get('/admin/requests', ...admin, async (req, res) => {
   const query = adminRequestQuery.parse(req.query);

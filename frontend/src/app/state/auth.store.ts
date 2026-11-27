@@ -1,4 +1,5 @@
-import { computed, inject } from '@angular/core';
+import { PLATFORM_ID, computed, inject } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
@@ -11,11 +12,15 @@ export const AuthStore = signalStore(
   { providedIn: 'root' },
   withState<AuthState>({ user: null, loading: false, error: null, hydrated: false, hydrating: false }),
   withComputed(({ user, hydrated, hydrating }) => ({ isAuthenticated: computed(() => user() !== null), isAdmin: computed(() => user()?.role === Role.ADMIN), isHydrated: computed(() => hydrated()), isHydrating: computed(() => hydrating()) })),
-  withMethods((store, authService = inject(AuthService), router = inject(Router)) => {
+  withMethods((store, authService = inject(AuthService), router = inject(Router), platformId = inject(PLATFORM_ID)) => {
     let hydration$: Observable<User | null> | null = null;
     const hydrate = (): Observable<User | null> => {
       if (store.hydrated()) return of(store.user());
       if (hydration$) return hydration$;
+      if (!isPlatformBrowser(platformId)) {
+        patchState(store, { hydrated: true, hydrating: false, user: null });
+        return of(null);
+      }
       const token = localStorage.getItem('jhub_access_token');
       if (!token) {
         patchState(store, { hydrated: true, hydrating: false, user: null });

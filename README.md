@@ -85,35 +85,25 @@ http://localhost:3000/api
 
 ---
 
-## Run Backend and Database with Docker
+## Run Backend with Docker
 
-From the repository root, start the PostgreSQL database and API together:
+The Compose backend reads the existing remote Prisma configuration from
+`backend/.env`; it does not create or replace the database:
 
 ```bash
 docker compose up --build
 ```
 
-The API waits for PostgreSQL to become healthy and applies pending Prisma
-migrations before starting. It is available at `http://localhost:3000/api`;
+The API applies pending Prisma migrations before starting. It is available at
+`http://localhost:3000/api`;
 the health endpoint is `http://localhost:3000/api/health`. The frontend's
 development proxy can connect to this API at `http://localhost:4300`.
 
-The Compose JWT secret default is for local development only. Set `JWT_SECRET`
-in the shell or a root `.env` file to a strong secret before using the stack
-outside local development.
-
-Stop the services with `docker compose down`. Add `--volumes` only when you
-intend to delete the persisted PostgreSQL data.
+Stop the service with `docker compose down`.
 
 ---
 
 ## Database Setup
-
-Start PostgreSQL:
-
-```bash
-docker compose up -d postgres
-```
 
 Generate Prisma Client:
 

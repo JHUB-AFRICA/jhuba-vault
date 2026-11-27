@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, PLATFORM_ID, computed, inject, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AssetCategory } from '../core/models';
 import { AuthStore } from '../state/auth.store';
@@ -17,6 +18,7 @@ import { CATEGORY_META, CATEGORY_ORDER, categoryIcon, categoryLabel } from '../s
 export class LandingPageComponent implements OnInit, OnDestroy {
   protected readonly auth = inject(AuthStore);
   protected readonly store = inject(AssetStore);
+  private readonly platformId = inject(PLATFORM_ID);
   protected readonly categories = CATEGORY_ORDER.map(value => ({ value, ...CATEGORY_META[value] }));
   protected readonly pointerPaused = signal(false);
   protected readonly focusPaused = signal(false);
@@ -52,6 +54,7 @@ export class LandingPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
     this.autoplayTimer = setInterval(() => {
       if (this.shouldPauseAutoplay() || this.featuredAssets().length < 2) return;
       this.goToSlide(this.activeIndex() + 1);

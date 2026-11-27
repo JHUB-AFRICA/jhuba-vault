@@ -121,7 +121,7 @@
             } @else {
               <span class="empty-eyebrow">JHUB Africa Vault</span>
               <h2>Ready for your next idea?</h2>
-              <p>Equipment will appear here as it is added to the Vault inventory.</p>
+              <p>No equipment currently available.</p>
             }
             <a class="btn btn-primary" routerLink="/catalogue">Browse the catalogue <i class="pi pi-arrow-right" aria-hidden="true"></i></a>
           </div>
@@ -131,6 +131,7 @@
   </div>
 </section>
 
+@defer (on immediate; hydrate on viewport) {
 <section class="section" id="categories">
   <div class="container">
     <div class="section-head">
@@ -160,7 +161,9 @@
     </div>
   </div>
 </section>
+}
 
+@defer (on immediate; hydrate on viewport) {
 <section class="section section-tint" id="how-it-works">
   <div class="container">
     <div class="section-head">
@@ -192,6 +195,7 @@
     </ol>
   </div>
 </section>
+}
 
 <section class="trust">
   <div class="container trust-grid">

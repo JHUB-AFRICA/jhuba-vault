@@ -1,0 +1,149 @@
+@if (opened()) {
+  <section id="ask-hub-panel" class="assistant-panel" role="dialog" aria-modal="false" aria-labelledby="ask-hub-title">
+    <header class="assistant-header">
+      <span class="assistant-mark" aria-hidden="true"><i class="pi pi-sparkles"></i></span>
+      <div class="assistant-heading">
+        <h2 id="ask-hub-title">Ask HUB AI</h2>
+        <p>JHUB Africa Vault assistant</p>
+      </div>
+      <button type="button" class="assistant-icon-button" aria-label="Start a new conversation" [disabled]="busy()" (click)="newConversation()">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="assistant-icon-button" aria-label="Close Ask HUB AI" (click)="toggle()">
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </header>
+
+    <div #transcript class="assistant-transcript" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Conversation">
+      @for (message of messages(); track $index) {
+        <article class="message" [class.message-user]="message.role === 'user'" [class.message-assistant]="message.role === 'assistant'">
+          @if (message.role === 'assistant') {
+            <span class="message-avatar" aria-hidden="true"><i class="pi pi-sparkles"></i></span>
+          }
+          <div class="message-content">
+            <p class="message-text">{{ message.content }}</p>
+            @for (result of message.results ?? []; track $index) {
+              @if (result.type === 'inventory') {
+                <section class="result-card" aria-label="Inventory search results">
+                  <h3>Matching assets</h3>
+                  @for (asset of result.items; track asset.id) {
+                    <a class="asset-result" [routerLink]="['/assets', asset.id]" (click)="opened.set(false)">
+                      <span class="result-icon"><i class="pi pi-box" aria-hidden="true"></i></span>
+                      <span class="result-copy">
+                        <strong>{{ asset.name }}</strong>
+                        <small>{{ asset.assetTag }} · {{ asset.availableQty }} available</small>
+                      </span>
+                      <i class="pi pi-arrow-up-right result-arrow" aria-hidden="true"></i>
+                    </a>
+                  } @empty {
+                    <p class="result-empty">No matching assets were found.</p>
+                  }
+                </section>
+              } @else if (result.type === 'requests') {
+                <section class="result-card" aria-label="Your requests">
+                  <h3>Your requests</h3>
+                  @for (request of result.items; track request.id) {
+                    <a class="request-result" [routerLink]="['/app/requests', request.id]" (click)="opened.set(false)">
+                      <span class="result-copy">
+                        <strong>{{ request.projectName }}</strong>
+                        <small>{{ resultRequestLabel(request.status) }} · {{ request.createdAt | date: 'd MMM y' }}</small>
+                        <small>{{ request.requestItems.length }} {{ request.requestItems.length === 1 ? 'asset' : 'assets' }}</small>
+                      </span>
+                      <i class="pi pi-chevron-right result-arrow" aria-hidden="true"></i>
+                    </a>
+                  } @empty {
+                    <p class="result-empty">No requests match those filters.</p>
+                  }
+                </section>
+              } @else if (result.type === 'request') {
+                <a class="result-card single-request" [routerLink]="['/app/requests', result.item.id]" (click)="opened.set(false)">
+                  <strong>{{ result.item.projectName }}</strong>
+                  <span>{{ resultRequestLabel(result.item.status) }} · {{ result.item.createdAt | date: 'd MMM y' }}</span>
+                </a>
+              } @else if (result.type === 'prepared_request') {
+                <section class="result-card prepared-card" aria-label="Request draft for review">
+                  <div class="prepared-heading">
+                    <span class="result-icon"><i class="pi pi-file-edit" aria-hidden="true"></i></span>
+                    <div class="result-copy"><h3>Review request draft</h3><small>Nothing has been submitted.</small></div>
+                  </div>
+                  <dl>
+                    <div><dt>Project</dt><dd>{{ result.item.request.projectName }}</dd></div>
+                    <div><dt>Purpose</dt><dd>{{ result.item.request.projectAbstract }}</dd></div>
+                    <div><dt>Start date</dt><dd>{{ result.item.request.startDate | date: 'd MMM y' }}</dd></div>
+                    <div><dt>Loan period</dt><dd>{{ result.item.request.loanDays }} days</dd></div>
+                    <div>
+                      <dt>Equipment</dt>
+                      <dd>
+                        @for (item of result.item.request.items; track item.assetId) {
+                          <span class="prepared-line">{{ assetFor(result.item, item.assetId)?.name ?? 'Asset' }} × {{ item.quantity }}</span>
+                        }
+                      </dd>
+                    </div>
+                    <div><dt>Team members</dt><dd>{{ result.item.request.teamMembers.length || 'None' }}</dd></div>
+                  </dl>
+                  @if (requestHasItems()) {
+                    <p class="replace-warning">Reviewing this draft will replace the items and project details currently in your request cart.</p>
+                  }
+                  <button type="button" class="btn btn-primary btn-block" (click)="reviewPreparedRequest(result.item)">
+                    {{ requestHasItems() ? 'Replace cart and review' : 'Review in request cart' }}
+                  </button>
+                </section>
+              } @else if (result.type === 'error') {
+                <p class="tool-error" role="status">{{ result.message }}</p>
+              }
+            }
+          </div>
+          @if (message.role === 'user') { <span class="user-avatar" aria-hidden="true"><i class="pi pi-user"></i></span> }
+        </article>
+      }
+
+      @if (messages().length === 1 && !busy()) {
+        <div class="suggestions" aria-label="Suggested questions">
+          @for (suggestion of suggestions; track suggestion.label) {
+            <button type="button" class="suggestion" (click)="chooseSuggestion(suggestion.message)">{{ suggestion.label }} <i class="pi pi-arrow-up-right" aria-hidden="true"></i></button>
+          }
+        </div>
+      }
+
+      @if (busy()) {
+        <div class="typing" role="status" aria-label="HUB AI is thinking">
+          <span></span><span></span><span></span><small>HUB AI is thinking</small>
+        </div>
+      }
+      @if (error()) { <p class="assistant-error" role="alert">{{ error() }}</p> }
+    </div>
+
+    <form class="assistant-composer" (ngSubmit)="send()">
+      <label class="sr-only" for="ask-hub-input">Message Ask HUB AI</label>
+      <textarea
+        id="ask-hub-input"
+        #messageInput
+        rows="1"
+        maxlength="4000"
+        [value]="draft()"
+        [disabled]="busy()"
+        placeholder="Ask about assets, requests, or the Vault…"
+        (input)="updateDraft($event)"
+        (keydown)="onEnter($event)"
+      ></textarea>
+      <button type="submit" class="send-button" [disabled]="busy() || !draft().trim()" aria-label="Send message">
+        <i class="pi pi-send" aria-hidden="true"></i>
+      </button>
+      <p>Enter to send · Shift+Enter for a new line</p>
+    </form>
+  </section>
+}
+
+<button
+  #launcher
+  type="button"
+  class="assistant-launcher"
+  [class.launcher-open]="opened()"
+  [attr.aria-expanded]="opened()"
+  aria-controls="ask-hub-panel"
+  [attr.aria-label]="opened() ? 'Close Ask HUB AI' : 'Open Ask HUB AI'"
+  (click)="toggle()"
+>
+  <i class="pi" [class.pi-sparkles]="!opened()" [class.pi-times]="opened()" aria-hidden="true"></i>
+  <span>{{ opened() ? 'Close' : 'Ask HUB AI' }}</span>
+</button>

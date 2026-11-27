@@ -17,7 +17,7 @@
           class="btn btn-secondary btn-icon public-toggle"
           [attr.aria-expanded]="menuOpen()"
           aria-controls="public-menu"
-          aria-label="Toggle menu"
+          [attr.aria-label]="menuOpen() ? 'Close navigation menu' : 'Open navigation menu'"
           (click)="menuOpen.set(!menuOpen())"
         >
           <i class="pi" [class]="menuOpen() ? 'pi pi-times' : 'pi pi-bars'" aria-hidden="true"></i>
@@ -25,16 +25,16 @@
 
         <div id="public-menu" class="public-menu" [class.is-open]="menuOpen()">
           <nav class="public-nav" aria-label="Primary">
-            <a routerLink="/catalogue" [class.active]="path() === '/catalogue'">Catalogue</a>
-            <a routerLink="/" fragment="categories">Categories</a>
-            <a routerLink="/" fragment="how-it-works">How it works</a>
+            <a routerLink="/catalogue" [class.active]="path() === '/catalogue'" (click)="closeMenu()">Catalogue</a>
+            <a routerLink="/" fragment="categories" (click)="closeMenu()">Categories</a>
+            <a routerLink="/" fragment="how-it-works" (click)="closeMenu()">How it works</a>
           </nav>
           <div class="public-actions">
             @if (auth.user()) {
-              <a class="btn btn-primary" [routerLink]="dashboardLink()">Go to dashboard</a>
+              <a class="btn btn-primary" [routerLink]="dashboardLink()" (click)="closeMenu()">Go to dashboard</a>
             } @else {
-              <a class="btn btn-ghost" routerLink="/auth/login">Sign in</a>
-              <a class="btn btn-primary" routerLink="/auth/register">Create account</a>
+              <a class="btn btn-ghost" routerLink="/auth/login" (click)="closeMenu()">Sign in</a>
+              <a class="btn btn-primary" routerLink="/auth/register" (click)="closeMenu()">Create account</a>
             }
           </div>
         </div>
@@ -78,7 +78,7 @@
 
   @case ('app') {
     <div class="app">
-      <aside class="sidebar" [class.is-open]="menuOpen()" aria-label="Sidebar">
+      <aside id="app-sidebar" class="sidebar" [class.is-open]="menuOpen()" aria-label="Sidebar">
         <a class="sidebar-brand" [routerLink]="homeLink()" aria-label="JHUB Africa Vault home">
           <img src="assets/logos/jhub-africa.png" alt="JHUB Africa" width="324" height="156" />
         </a>
@@ -91,6 +91,7 @@
                 <a
                   class="nav-link"
                   [routerLink]="item.link"
+                  (click)="closeMenu()"
                   [class.active]="isActive(item)"
                   [attr.aria-current]="isActive(item) ? 'page' : null"
                 >
@@ -115,7 +116,8 @@
           <button
             type="button"
             class="btn btn-ghost btn-icon menu-button"
-            aria-label="Open navigation"
+            aria-controls="app-sidebar"
+            [attr.aria-label]="menuOpen() ? 'Close navigation menu' : 'Open navigation menu'"
             [attr.aria-expanded]="menuOpen()"
             (click)="menuOpen.set(!menuOpen())"
           >
@@ -158,9 +160,9 @@
                       <strong>{{ user.fullName }}</strong>
                       <small>{{ user.email }}</small>
                     </div>
-                    <a role="menuitem" class="menu-item" routerLink="/app/profile"><i class="pi pi-user" aria-hidden="true"></i> Your profile</a>
+                    <a role="menuitem" class="menu-item" routerLink="/app/profile" (click)="closeMenu()"><i class="pi pi-user" aria-hidden="true"></i> Your profile</a>
                     @if (user.role !== Role.ADMIN) {
-                      <a role="menuitem" class="menu-item" routerLink="/catalogue"><i class="pi pi-box" aria-hidden="true"></i> Asset catalogue</a>
+                      <a role="menuitem" class="menu-item" routerLink="/catalogue" (click)="closeMenu()"><i class="pi pi-box" aria-hidden="true"></i> Asset catalogue</a>
                     }
                     <button role="menuitem" type="button" class="menu-item menu-danger" (click)="signOut()"><i class="pi pi-sign-out" aria-hidden="true"></i> Sign out</button>
                   </div>
@@ -176,4 +178,5 @@
   }
 }
 
+@if (layout() === 'app') { <jhub-ask-hub /> }
 <jhub-overlay-host />

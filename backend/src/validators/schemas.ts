@@ -50,6 +50,10 @@ export const requestSchema = z.object({
   })).max(50)
 });
 
+export const adminRequestSchema = requestSchema.extend({
+  innovatorId: z.uuid()
+});
+
 export const rejectSchema = z.object({
   rejectionReason: z.string().trim().min(1).max(1000)
 });

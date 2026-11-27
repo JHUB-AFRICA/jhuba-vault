@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, ElementRef, HostListener, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, PLATFORM_ID, computed, inject, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -8,6 +9,7 @@ import { RequestStore } from './state/request.store';
 import { GlobalSearchComponent } from './shared/global-search.component';
 import { OverlayHostComponent } from './shared/overlay-host.component';
 import { initials } from './shared/format';
+import { AskHubComponent } from './features/ask-hub.component';
 
 interface NavItem {
   label: string;
@@ -64,7 +66,7 @@ type Layout = 'bare' | 'public' | 'app';
 @Component({
   selector: 'jhub-root',
   standalone: true,
-  imports: [RouterLink, RouterOutlet, GlobalSearchComponent, OverlayHostComponent],
+  imports: [RouterLink, RouterOutlet, GlobalSearchComponent, OverlayHostComponent, AskHubComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
@@ -74,6 +76,7 @@ export class AppComponent {
   protected readonly cart = inject(RequestStore);
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly platformId = inject(PLATFORM_ID);
 
   protected readonly menuOpen = signal(false);
   protected readonly userMenuOpen = signal(false);
@@ -93,7 +96,7 @@ export class AppComponent {
 
   /** True once we know (or strongly expect) the visitor is signed in. */
   private readonly hasSession = computed(
-    () => !!this.auth.user() || (!this.auth.isHydrated() && !!localStorage.getItem('jhub_access_token'))
+    () => !!this.auth.user() || (isPlatformBrowser(this.platformId) && !this.auth.isHydrated() && !!localStorage.getItem('jhub_access_token'))
   );
 
   protected readonly layout = computed<Layout>(() => {
@@ -130,10 +133,17 @@ export class AppComponent {
     this.auth.signOut();
   }
 
+  protected closeMenu(): void {
+    this.menuOpen.set(false);
+  }
+
   @HostListener('document:click', ['$event'])
   protected onDocumentClick(event: MouseEvent): void {
-    const menu = this.host.nativeElement.querySelector('.user-menu');
-    if (menu && !menu.contains(event.target as Node)) this.userMenuOpen.set(false);
+    const target = event.target as Node;
+    const userMenu = this.host.nativeElement.querySelector('.user-menu');
+    const navigation = this.host.nativeElement.querySelector('.public-header, .sidebar');
+    if (userMenu && !userMenu.contains(target)) this.userMenuOpen.set(false);
+    if (navigation && !navigation.contains(target)) this.menuOpen.set(false);
   }
 
   @HostListener('document:keydown.escape')

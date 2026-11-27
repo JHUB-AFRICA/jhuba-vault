@@ -1,35 +1,12 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: jhub_africa_vault
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - jhub-postgres:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d jhub_africa_vault"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   backend:
     build:
       context: ./backend
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
+    env_file:
+      - ./backend/.env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/jhub_africa_vault?schema=public
-      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-before-production}
-      JWT_EXPIRES_IN: 1d
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:4300}
-      PORT: 3000
     ports:
       - "3000:3000"
     healthcheck:
@@ -44,6 +21,3 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-
-volumes:
-  jhub-postgres:

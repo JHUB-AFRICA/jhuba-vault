@@ -22,7 +22,7 @@ export const AssetStore = signalStore(
       patchState(store, { loading: true, error: null });
       assetService.list().subscribe({
         next: assets => patchState(store, { assets, loading: false }),
-        error: () => patchState(store, { assets: [], loading: false, error: 'Unable to load catalogue assets.' })
+        error: () => patchState(store, { assets: [], loading: false, error: 'Unable to load inventory. Please try again.' })
       });
     },
     setSearch(search: string): void { patchState(store, { search }); },

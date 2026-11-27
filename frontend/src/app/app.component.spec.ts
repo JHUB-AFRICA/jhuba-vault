@@ -2,7 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
+import { provideClientHydration, withIncrementalHydration } from '@angular/platform-browser';
+import { DeferBlockState } from '@angular/core/testing';
 import { Asset, AssetCategory } from './core/models';
+import { API_BASE_URL } from './core/api.service';
 import { LandingPageComponent } from './features/landing-page.component';
 
 function makeAsset(id: string, overrides: Partial<Asset> = {}): Asset {
@@ -27,16 +30,25 @@ describe('LandingPageComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [LandingPageComponent],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()]
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideClientHydration(withIncrementalHydration()),
+        { provide: API_BASE_URL, useValue: '/api' }
+      ]
     }).compileComponents();
   });
 
-  it('renders the headline and primary sections with a catalogue fallback for empty inventory', () => {
+  it('renders the headline and primary sections with a catalogue fallback for empty inventory', async () => {
     const fixture = TestBed.createComponent(LandingPageComponent);
     const http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
     http.expectOne('/api/assets').flush({ success: true, data: [] });
     fixture.detectChanges();
+    for (const block of await fixture.getDeferBlocks()) {
+      await block.render(DeferBlockState.Complete);
+    }
 
     expect(fixture.nativeElement.querySelector('h1').textContent).toContain('Build the future');
     expect(fixture.nativeElement.querySelector('#categories')).not.toBeNull();
@@ -70,13 +82,13 @@ describe('LandingPageComponent', () => {
     http.verify();
   });
 
-  it('shows the branded image fallback when a featured image fails', () => {
+  it('shows the neutral equipment placeholder when a featured image fails', () => {
     const fixture = TestBed.createComponent(LandingPageComponent);
     const http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
     http.expectOne('/api/assets').flush({
       success: true,
-      data: [makeAsset('broken', { imageUrl: 'data:image/png;base64,invalid' })]
+      data: [makeAsset('broken', { imageUrl: '/broken-image.png' })]
     });
     fixture.detectChanges();
 

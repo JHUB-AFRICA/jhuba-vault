@@ -58,7 +58,7 @@
       <jhub-empty
         icon="pi-search"
         [title]="hasFilters() ? 'No assets match your filters' : 'The catalogue is empty'"
-        [text]="hasFilters() ? 'Try a different search term or clear the filters to see everything.' : 'Assets will appear here once the Vault administrators add them.'"
+        [text]="hasFilters() ? 'Try a different search term or clear the filters to see everything.' : 'No equipment currently available.'"
       >
         @if (hasFilters()) { <button type="button" class="btn btn-secondary" (click)="assets.clearFilters()">Clear filters</button> }
       </jhub-empty>
@@ -88,9 +88,6 @@
                   {{ asset.availableQty ? asset.availableQty + ' available' : 'Checked out' }}
                 </span>
                 <span class="muted">of {{ asset.totalQuantity }}</span>
-              </div>
-              <div class="meter" [class.is-low]="stockTone(asset.availableQty, asset.totalQuantity) === 'low'" [class.is-out]="asset.availableQty === 0" role="presentation">
-                <span [style.width.%]="asset.totalQuantity ? (asset.availableQty / asset.totalQuantity) * 100 : 0"></span>
               </div>
             </div>
           </div>

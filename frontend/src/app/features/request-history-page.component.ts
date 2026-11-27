@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { RequestService } from '../core/api.service';
 import { AssetRequest, RequestStatus } from '../core/models';
@@ -51,7 +51,7 @@ export class RequestHistoryPageComponent {
   });
 
   constructor() {
-    this.load();
+    afterNextRender(() => this.load());
   }
 
   protected load(): void {

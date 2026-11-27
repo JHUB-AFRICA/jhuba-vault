@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { RequestService } from '../core/api.service';
 import { RequestStore } from '../state/request.store';
 import { EmptyStateComponent } from '../shared/empty-state.component';
@@ -128,7 +129,12 @@ export class WorkspacePageComponent {
           this.request.clearItems();
           void this.router.navigateByUrl('/app/requests/submitted');
         },
-        error: () => this.request.failSubmission('We couldn’t submit your request. Check that the equipment is still in stock, then try again.')
+        error: (error: HttpErrorResponse) => {
+          const message = error.error?.error === 'INSUFFICIENT_INVENTORY'
+            ? 'We couldn’t submit your request because the selected equipment is no longer available in that quantity.'
+            : 'We couldn’t submit your request. Please try again.';
+          this.request.failSubmission(message);
+        }
       });
   }
 }
